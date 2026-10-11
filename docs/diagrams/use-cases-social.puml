@@ -1,0 +1,94 @@
+@startuml CloudLab_Social_Projects_Use_Cases
+!theme plain
+skinparam shadowing false
+skinparam roundcorner 10
+skinparam actorStyle awesome
+skinparam packageStyle rectangle
+
+skinparam defaultFontName "Helvetica", "Segoe UI", Arial, sans-serif
+skinparam defaultFontSize 12
+skinparam sequenceMessageAlign center
+skinparam ArrowColor #0284c7
+skinparam ArrowThickness 1.3
+
+skinparam actor {
+    BackgroundColor #0284c7
+    BorderColor #0369a1
+    FontColor #0f172a
+    FontSize 13
+    FontStyle bold
+}
+
+skinparam usecase {
+    BackgroundColor #f8fafc
+    BorderColor #0284c7
+    BorderThickness 1.5
+    FontColor #0f172a
+    FontSize 12
+}
+
+title **CloudLab - Social Projects & Team Collaboration Use Case View**
+
+' ==============================================================================
+' ACTORS
+' ==============================================================================
+actor "Student / Squad Member" as Student
+actor "Project Owner / Instructor" as Owner
+actor "Administrator" as Admin
+
+Student <|-- Owner
+Owner <|-- Admin
+
+' ==============================================================================
+' SUBSYSTEM: SOCIAL PROJECTS & TEAM COLLABORATION
+' ==============================================================================
+rectangle "Social Projects & Team Collaboration Subsystem" {
+
+    ' Exploration & Application
+    usecase "Explore Squad Projects\n(Filter by Status & Skills)" as UC_BrowseProjects
+    usecase "Apply to Join Project Squad" as UC_ApplyProject
+    usecase "Submit Motivation Statement" as UC_MotivationNote
+
+    ' Project Workspace & Task Execution
+    usecase "View Squad Project Workspace" as UC_ViewWorkspace
+    usecase "Manage Kanban Tasks\n(TODO, IN_PROGRESS, SUBMITTED)" as UC_ManageTasks
+    usecase "Submit Task Deliverable / Evidence" as UC_SubmitEvidence
+    usecase "Attach Git Repo / Deployment Link" as UC_AttachLinks
+
+    ' Project Governance & Review (Owner / Instructor)
+    usecase "Create New Squad Project" as UC_CreateProject
+    usecase "Review & Manage Squad Applications\n(Accept / Reject)" as UC_ManageApps
+    usecase "Define & Assign Squad Tasks" as UC_AssignTasks
+    usecase "Review & Validate Task Deliverables" as UC_ValidateEvidence
+    usecase "Request Deliverable Revision" as UC_RequestRevision
+    usecase "Transition Project State\n(Recruiting -> Active -> Completed)" as UC_ChangeProjectState
+    
+    ' Administrative
+    usecase "Moderate & Archive Projects" as UC_ArchiveProject
+}
+
+' ==============================================================================
+' RELATIONSHIPS & INCLUDES / EXTENDS
+' ==============================================================================
+Student --> UC_BrowseProjects
+Student --> UC_ApplyProject
+Student --> UC_ViewWorkspace
+Student --> UC_ManageTasks
+Student --> UC_SubmitEvidence
+
+' Includes & Extends
+UC_ApplyProject <.. UC_MotivationNote : <<extend>>
+UC_SubmitEvidence ..> UC_AttachLinks : <<include>>
+UC_ValidateEvidence <.. UC_RequestRevision : <<extend>>
+
+' Project Owner / Instructor Interactions
+Owner --> UC_CreateProject
+Owner --> UC_ManageApps
+Owner --> UC_AssignTasks
+Owner --> UC_ValidateEvidence
+Owner --> UC_ChangeProjectState
+
+' Admin Interactions
+Admin --> UC_ArchiveProject
+
+@enduml

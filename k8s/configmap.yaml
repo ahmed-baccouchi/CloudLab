@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloudlab-config
+  namespace: cloudlab
+data:
+  NODE_ENV: "production"
+  DATABASE_HOST: "mysql-service"
+  DATABASE_PORT: "3306"
+  DATABASE_USER: "cloudlab"
+  GATEWAY_PORT: "4000"
+  AUTH_SERVICE_URL: "http://auth-service:4001"
+  LEARNING_SERVICE_URL: "http://learning-service:4002"
+  PROGRESS_SERVICE_URL: "http://progress-service:4004"
+  PROJECT_SERVICE_URL: "http://project-service:4005"
+  COMMUNICATION_SERVICE_URL: "http://communication-service:4006"
+  LLM_PROVIDER: "gemini"
+  LLM_MODEL: "gemini-flash-latest"

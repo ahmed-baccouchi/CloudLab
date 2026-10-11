@@ -1,0 +1,92 @@
+@startuml CloudLab_Learning_Use_Cases
+!theme plain
+skinparam shadowing false
+skinparam roundcorner 10
+skinparam actorStyle awesome
+skinparam packageStyle rectangle
+
+skinparam defaultFontName "Helvetica", "Segoe UI", Arial, sans-serif
+skinparam defaultFontSize 12
+skinparam sequenceMessageAlign center
+skinparam ArrowColor #0284c7
+skinparam ArrowThickness 1.3
+
+skinparam actor {
+    BackgroundColor #0284c7
+    BorderColor #0369a1
+    FontColor #0f172a
+    FontSize 13
+    FontStyle bold
+}
+
+skinparam usecase {
+    BackgroundColor #f8fafc
+    BorderColor #0284c7
+    BorderThickness 1.5
+    FontColor #0f172a
+    FontSize 12
+}
+
+title **CloudLab - Learning & Educational Modules Use Case View**
+
+' ==============================================================================
+' ACTORS
+' ==============================================================================
+actor "Student" as Student
+actor "Instructor" as Instructor
+actor "Administrator" as Admin
+
+Student <|-- Instructor
+Instructor <|-- Admin
+
+' ==============================================================================
+' SUBSYSTEM: LEARNING MANAGEMENT
+' ==============================================================================
+rectangle "Learning & Educational Subsystem" {
+    
+    ' Course Exploration & Enrollment
+    usecase "Browse Tracks & Courses" as UC_Browse
+    usecase "View Course Syllabus & Modules" as UC_ViewSyllabus
+    usecase "Enroll in Course" as UC_Enroll
+    usecase "Verify Course Prerequisites" as UC_Prereq
+
+    ' Learning & Assessment Execution
+    usecase "Study Lesson Content\n(Video / Reading)" as UC_StudyLesson
+    usecase "Attempt Lesson / Module Quiz" as UC_TakeQuiz
+    usecase "Evaluate Quiz Answers & Score" as UC_EvalQuiz
+    usecase "Track Learning Progress & Points" as UC_TrackProgress
+
+    ' Course Authoring & Management (Instructor / Admin)
+    usecase "Create & Manage Learning Tracks" as UC_ManageTracks
+    usecase "Create & Edit Course Curriculum" as UC_ManageCourses
+    usecase "Create & Configure Quizzes" as UC_ManageQuizzes
+    usecase "View Course Enrollments & Analytics" as UC_ViewAnalytics
+    usecase "Publish / Archive Course" as UC_PublishCourse
+}
+
+' ==============================================================================
+' RELATIONSHIPS & INCLUDES / EXTENDS
+' ==============================================================================
+Student --> UC_Browse
+Student --> UC_ViewSyllabus
+Student --> UC_Enroll
+Student --> UC_StudyLesson
+Student --> UC_TakeQuiz
+Student --> UC_TrackProgress
+
+' Extends & Includes
+UC_Enroll <.. UC_Prereq : <<extend>>
+UC_TakeQuiz ..> UC_EvalQuiz : <<include>>
+UC_TakeQuiz ..> UC_TrackProgress : <<include>>
+UC_StudyLesson ..> UC_TrackProgress : <<include>>
+
+' Instructor Interactions
+Instructor --> UC_ManageTracks
+Instructor --> UC_ManageCourses
+Instructor --> UC_ManageQuizzes
+Instructor --> UC_ViewAnalytics
+
+' Admin Interactions
+Admin --> UC_PublishCourse
+
+@enduml

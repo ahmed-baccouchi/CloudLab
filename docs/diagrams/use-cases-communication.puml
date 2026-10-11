@@ -1,0 +1,107 @@
+@startuml CloudLab_Communication_Use_Cases
+!theme plain
+skinparam shadowing false
+skinparam roundcorner 10
+skinparam actorStyle awesome
+skinparam packageStyle rectangle
+
+skinparam defaultFontName "Helvetica", "Segoe UI", Arial, sans-serif
+skinparam defaultFontSize 12
+skinparam sequenceMessageAlign center
+skinparam ArrowColor #0284c7
+skinparam ArrowThickness 1.3
+
+skinparam actor {
+    BackgroundColor #0284c7
+    BorderColor #0369a1
+    FontColor #0f172a
+    FontSize 13
+    FontStyle bold
+}
+
+skinparam usecase {
+    BackgroundColor #f8fafc
+    BorderColor #0284c7
+    BorderThickness 1.5
+    FontColor #0f172a
+    FontSize 12
+}
+
+title **CloudLab - Communication, Community & AI Assistant Use Case View**
+
+' ==============================================================================
+' ACTORS
+' ==============================================================================
+actor "Student" as Student
+actor "Instructor" as Instructor
+actor "Administrator" as Admin
+actor "Google Gemini AI API" as GeminiActor <<External System>>
+
+Student <|-- Instructor
+Instructor <|-- Admin
+
+' ==============================================================================
+' SUBSYSTEM: COMMUNICATION, COMMUNITY & AI ASSISTANT
+' ==============================================================================
+rectangle "Communication, Community & AI Subsystem" {
+
+    ' Announcements
+    usecase "View Announcements" as UC_ViewAnnouncements
+    usecase "Filter Announcements by Category" as UC_FilterAnnouncements
+    usecase "Publish Platform Announcement" as UC_PublishAnnouncement
+    usecase "Target Audience Filtering\n(Students, Instructors, All)" as UC_TargetAudience
+
+    ' Forum & Discussions
+    usecase "Browse Forum Discussions" as UC_BrowseDiscussions
+    usecase "Start Discussion Thread" as UC_CreateDiscussion
+    usecase "Post Discussion Reply / Comment" as UC_PostReply
+    usecase "Mark Reply as Accepted Answer" as UC_AcceptAnswer
+    usecase "Update Discussion Status to Solved" as UC_MarkSolved
+
+    ' Real-Time Notifications
+    usecase "Receive In-App Notifications\n(Bell Badge & Dropdown)" as UC_ReceiveNotifications
+    usecase "Receive Real-Time WebSocket Alerts" as UC_WebSocketAlerts
+    usecase "Mark Notification as Read" as UC_MarkRead
+
+    ' AI Assistant
+    usecase "Chat with AI Assistant\n(Coding & Learning Guidance)" as UC_ChatAI
+    usecase "Query Google Gemini Model" as UC_CallGemini
+    usecase "Fallback to Local Context Engine" as UC_FallbackAI
+
+    ' Forum Administration
+    usecase "Manage Forum Categories" as UC_ManageCategories
+    usecase "Moderate Discussions & Replies" as UC_ModerateForum
+}
+
+' ==============================================================================
+' RELATIONSHIPS & INCLUDES / EXTENDS
+' ==============================================================================
+Student --> UC_ViewAnnouncements
+Student --> UC_BrowseDiscussions
+Student --> UC_CreateDiscussion
+Student --> UC_PostReply
+Student --> UC_AcceptAnswer
+Student --> UC_ReceiveNotifications
+Student --> UC_ChatAI
+
+' Includes & Extends
+UC_ViewAnnouncements <.. UC_FilterAnnouncements : <<extend>>
+UC_PublishAnnouncement ..> UC_TargetAudience : <<include>>
+UC_AcceptAnswer ..> UC_MarkSolved : <<include>>
+UC_ReceiveNotifications <.. UC_WebSocketAlerts : <<extend>>
+UC_ReceiveNotifications ..> UC_MarkRead : <<extend>>
+
+UC_ChatAI ..> UC_CallGemini : <<include>>
+UC_CallGemini <.. UC_FallbackAI : <<extend>>
+
+' External System Integration
+UC_CallGemini --> GeminiActor : <<invokes>>
+
+' Instructor Interactions
+Instructor --> UC_PublishAnnouncement
+Instructor --> UC_ModerateForum
+
+' Admin Interactions
+Admin --> UC_ManageCategories
+
+@enduml

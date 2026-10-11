@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xmi:XMI xmi:version="2.1"
+         xmlns:uml="http://schema.omg.org/spec/UML/2.1"
+         xmlns:xmi="http://schema.omg.org/spec/XMI/2.1">
+  <xmi:Documentation exporter="StarUML" exporterVersion="5.0"/>
+  <uml:Model xmi:type="uml:Model" xmi:id="model_cloudlab_general" name="CloudLab General Use Cases">
+
+    <!-- =================================================================== -->
+    <!-- ACTORS                                                              -->
+    <!-- =================================================================== -->
+    <packagedElement xmi:type="uml:Actor" xmi:id="actor_student" name="Student"/>
+
+    <packagedElement xmi:type="uml:Actor" xmi:id="actor_instructor" name="Instructor">
+      <generalization xmi:type="uml:Generalization" xmi:id="gen_inst_stud" general="actor_student"/>
+    </packagedElement>
+
+    <packagedElement xmi:type="uml:Actor" xmi:id="actor_admin" name="Administrator">
+      <generalization xmi:type="uml:Generalization" xmi:id="gen_admin_inst" general="actor_instructor"/>
+    </packagedElement>
+
+    <packagedElement xmi:type="uml:Actor" xmi:id="actor_gemini" name="Google Gemini AI (External Service)"/>
+
+    <!-- =================================================================== -->
+    <!-- PACKAGE 1: IDENTITY & ACCESS                                        -->
+    <!-- =================================================================== -->
+    <packagedElement xmi:type="uml:Package" xmi:id="pkg_identity" name="Identity &amp; Access">
+      <packagedElement xmi:type="uml:UseCase" xmi:id="uc_auth" name="Authenticate &amp; Manage Profile"/>
+      <packagedElement xmi:type="uml:UseCase" xmi:id="uc_admin_users" name="Manage Users &amp; Platform Roles"/>
+    </packagedElement>
+
+    <!-- =================================================================== -->
+    <!-- PACKAGE 2: LEARNING & ASSESSMENT                                    -->
+    <!-- =================================================================== -->
+    <packagedElement xmi:type="uml:Package" xmi:id="pkg_learning" name="Learning &amp; Assessment">
+      <packagedElement xmi:type="uml:UseCase" xmi:id="uc_study" name="Enroll &amp; Study Courses"/>
+      <packagedElement xmi:type="uml:UseCase" xmi:id="uc_quiz" name="Take Quizzes &amp; Track Progress"/>
+      <packagedElement xmi:type="uml:UseCase" xmi:id="uc_author_course" name="Author Courses &amp; Quizzes"/>
+    </packagedElement>
+
+    <!-- =================================================================== -->
+    <!-- PACKAGE 3: SQUAD PROJECTS                                           -->
+    <!-- =================================================================== -->
+    <packagedElement xmi:type="uml:Package" xmi:id="pkg_squad" name="Squad Projects">
+      <packagedElement xmi:type="uml:UseCase" xmi:id="uc_squad_work" name="Join &amp; Work on Squad Projects"/>
+      <packagedElement xmi:type="uml:UseCase" xmi:id="uc_review_squad" name="Review &amp; Validate Deliverables"/>
+      <packagedElement xmi:type="uml:UseCase" xmi:id="uc_manage_projects" name="Create &amp; Oversee Projects"/>
+    </packagedElement>
+
+    <!-- =================================================================== -->
+    <!-- PACKAGE 4: COMMUNITY & AI ASSISTANT                                 -->
+    <!-- =================================================================== -->
+    <packagedElement xmi:type="uml:Package" xmi:id="pkg_community" name="Community &amp; AI Assistant">
+      <packagedElement xmi:type="uml:UseCase" xmi:id="uc_forum" name="Participate in Forum Discussions"/>
+      <packagedElement xmi:type="uml:UseCase" xmi:id="uc_ai" name="Consult CloudLab AI Assistant"/>
+      <packagedElement xmi:type="uml:UseCase" xmi:id="uc_announce" name="Publish Platform Announcements"/>
+    </packagedElement>
+
+    <!-- =================================================================== -->
+    <!-- ASSOCIATIONS                                                        -->
+    <!-- =================================================================== -->
+    <!-- Student Associations -->
+    <packagedElement xmi:type="uml:Association" xmi:id="assoc_stud_auth" name="Student_Auth">
+      <memberEnd xmi:idref="end_stud_auth_a"/>
+      <memberEnd xmi:idref="end_stud_auth_u"/>
+      <ownedEnd xmi:type="uml:Property" xmi:id="end_stud_auth_a" type="actor_student" association="assoc_stud_auth"/>
+      <ownedEnd xmi:type="uml:Property" xmi:id="end_stud_auth_u" type="uc_auth" association="assoc_stud_auth"/>
+    </packagedElement>
+
+    <packagedElement xmi:type="uml:Association" xmi:id="assoc_stud_study" name="Student_Study">
+      <memberEnd xmi:idref="end_stud_study_a"/>
+      <memberEnd xmi:idref="end_stud_study_u"/>
+      <ownedEnd xmi:type="uml:Property" xmi:id="end_stud_study_a" type="actor_student" association="assoc_stud_study"/>
+      <ownedEnd xmi:type="uml:Property" xmi:id="end_stud_study_u" type="uc_study" association="assoc_stud_study"/>
+    </packagedElement>
+
+    <packagedElement xmi:type="uml:Association" xmi:id="assoc_stud_quiz" name="Student_Quiz">
+      <memberEnd xmi:idref="end_stud_quiz_a"/>
+      <memberEnd xmi:idref="end_stud_quiz_u"/>
+      <ownedEnd xmi:type="uml:Property" xmi:id="end_stud_quiz_a" type="actor_student" association="assoc_stud_quiz"/>
+      <ownedEnd xmi:type="uml:Property" xmi:id="end_stud_quiz_u" type="uc_quiz" association="assoc_stud_quiz"/>
+    </packagedElement>
+
+    <packagedElement xmi:type="uml:Association" xmi:id="assoc_stud_squad" name="Student_SquadWork">
+      <memberEnd xmi:idref="end_stud_squad_a"/>
+      <memberEnd xmi:idref="end_stud_squad_u"/>
+      <ownedEnd xmi:type="uml:Property" xmi:id="end_stud_squad_a" type="actor_student" association="assoc_stud_squad"/>
+      <ownedEnd xmi:type="uml:Property" xmi:id="end_stud_squad_u" type="uc_squad_work" association="assoc_stud_squad"/>
+    </packagedElement>
+
+    <packagedElement xmi:type="uml:Association" xmi:id="assoc_stud_forum" name="Student_Forum">
+      <memberEnd xmi:idref="end_stud_forum_a"/>
+      <memberEnd xmi:idref="end_stud_forum_u"/>
+      <ownedEnd xmi:type="uml:Property" xmi:id="end_stud_forum_a" type="actor_student" association="assoc_stud_forum"/>
+      <ownedEnd xmi:type="uml:Property" xmi:id="end_stud_forum_u" type="uc_forum" association="assoc_stud_forum"/>
+    </packagedElement>
+
+    <packagedElement xmi:type="uml:Association" xmi:id="assoc_stud_ai" name="Student_AI">
+      <memberEnd xmi:idref="end_stud_ai_a"/>
+      <memberEnd xmi:idref="end_stud_ai_u"/>
+      <ownedEnd xmi:type="uml:Property" xmi:id="end_stud_ai_a" type="actor_student" association="assoc_stud_ai"/>
+      <ownedEnd xmi:type="uml:Property" xmi:id="end_stud_ai_u" type="uc_ai" association="assoc_stud_ai"/>
+    </packagedElement>
+
+    <!-- Instructor Associations -->
+    <packagedElement xmi:type="uml:Association" xmi:id="assoc_inst_author" name="Instructor_AuthorCourse">
+      <memberEnd xmi:idref="end_inst_author_a"/>
+      <memberEnd xmi:idref="end_inst_author_u"/>
+      <ownedEnd xmi:type="uml:Property" xmi:id="end_inst_author_a" type="actor_instructor" association="assoc_inst_author"/>
+      <ownedEnd xmi:type="uml:Property" xmi:id="end_inst_author_u" type="uc_author_course" association="assoc_inst_author"/>
+    </packagedElement>
+
+    <packagedElement xmi:type="uml:Association" xmi:id="assoc_inst_review" name="Instructor_ReviewSquad">
+      <memberEnd xmi:idref="end_inst_review_a"/>
+      <memberEnd xmi:idref="end_inst_review_u"/>
+      <ownedEnd xmi:type="uml:Property" xmi:id="end_inst_review_a" type="actor_instructor" association="assoc_inst_review"/>
+      <ownedEnd xmi:type="uml:Property" xmi:id="end_inst_review_u" type="uc_review_squad" association="assoc_inst_review"/>
+    </packagedElement>
+
+    <packagedElement xmi:type="uml:Association" xmi:id="assoc_inst_manage" name="Instructor_ManageProjects">
+      <memberEnd xmi:idref="end_inst_manage_a"/>
+      <memberEnd xmi:idref="end_inst_manage_u"/>
+      <ownedEnd xmi:type="uml:Property" xmi:id="end_inst_manage_a" type="actor_instructor" association="assoc_inst_manage"/>
+      <ownedEnd xmi:type="uml:Property" xmi:id="end_inst_manage_u" type="uc_manage_projects" association="assoc_inst_manage"/>
+    </packagedElement>
+
+    <packagedElement xmi:type="uml:Association" xmi:id="assoc_inst_announce" name="Instructor_Announce">
+      <memberEnd xmi:idref="end_inst_announce_a"/>
+      <memberEnd xmi:idref="end_inst_announce_u"/>
+      <ownedEnd xmi:type="uml:Property" xmi:id="end_inst_announce_a" type="actor_instructor" association="assoc_inst_announce"/>
+      <ownedEnd xmi:type="uml:Property" xmi:id="end_inst_announce_u" type="uc_announce" association="assoc_inst_announce"/>
+    </packagedElement>
+
+    <!-- Administrator Associations -->
+    <packagedElement xmi:type="uml:Association" xmi:id="assoc_admin_users" name="Admin_ManageUsers">
+      <memberEnd xmi:idref="end_admin_users_a"/>
+      <memberEnd xmi:idref="end_admin_users_u"/>
+      <ownedEnd xmi:type="uml:Property" xmi:id="end_admin_users_a" type="actor_admin" association="assoc_admin_users"/>
+      <ownedEnd xmi:type="uml:Property" xmi:id="end_admin_users_u" type="uc_admin_users" association="assoc_admin_users"/>
+    </packagedElement>
+
+    <!-- AI Service Association -->
+    <packagedElement xmi:type="uml:Association" xmi:id="assoc_ai_gemini" name="AI_GeminiService">
+      <memberEnd xmi:idref="end_ai_gemini_u"/>
+      <memberEnd xmi:idref="end_ai_gemini_a"/>
+      <ownedEnd xmi:type="uml:Property" xmi:id="end_ai_gemini_u" type="uc_ai" association="assoc_ai_gemini"/>
+      <ownedEnd xmi:type="uml:Property" xmi:id="end_ai_gemini_a" type="actor_gemini" association="assoc_ai_gemini"/>
+    </packagedElement>
+
+  </uml:Model>
+</xmi:XMI>

@@ -1,0 +1,23 @@
+{
+  "name": "@cloudlab/shared-auth",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Shared Express.js authentication and RBAC middlewares for CloudLab",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b",
+    "watch": "tsc -b -w",
+    "clean": "rimraf dist"
+  },
+  "dependencies": {
+    "@cloudlab/shared-types": "*",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.7",
+    "typescript": "^5.7.3"
+  }
+}

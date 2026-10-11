@@ -1,0 +1,117 @@
+@startuml CloudLab_General_Use_Case_Diagram
+!theme plain
+left to right direction
+
+skinparam shadowing false
+skinparam roundcorner 12
+skinparam actorStyle awesome
+skinparam packageStyle rectangle
+
+skinparam defaultFontName "Segoe UI", "Helvetica", Arial, sans-serif
+skinparam defaultFontSize 12
+
+' Balanced clean palette
+skinparam ArrowColor #0284c7
+skinparam ArrowThickness 1.3
+
+skinparam actor {
+    BackgroundColor #0284c7
+    BorderColor #0369a1
+    FontColor #0f172a
+    FontSize 13
+    FontStyle bold
+}
+
+skinparam usecase {
+    BackgroundColor #ffffff
+    BorderColor #0284c7
+    BorderThickness 1.5
+    FontColor #0f172a
+    FontSize 12
+}
+
+skinparam rectangle {
+    BackgroundColor #f8fafc
+    BorderColor #94a3b8
+    BorderThickness 1.2
+    FontColor #0f172a
+    FontStyle bold
+    FontSize 14
+}
+
+title **CloudLab Platform - General Use Case Diagram**
+
+' ==============================================================================
+' ACTORS
+' ==============================================================================
+actor "Student" as Student #38bdf8
+actor "Instructor" as Instructor #818cf8
+actor "Administrator" as Admin #f43f5e
+actor "Google Gemini AI" as Gemini #10b981 <<External Service>>
+
+' Actor Specialization
+Student <|-- Instructor
+Instructor <|-- Admin
+
+' ==============================================================================
+' CLOUDLAB SYSTEM BOUNDARY
+' ==============================================================================
+rectangle "CloudLab Educational Platform" {
+
+    ' --- 1. Identity & Profile ---
+    package "Identity & Access" {
+        usecase "Authenticate & Manage Profile" as UC_Auth
+        usecase "Manage Users & Platform Roles" as UC_AdminUsers
+    }
+
+    ' --- 2. Learning & Educational Management ---
+    package "Learning & Assessment" {
+        usecase "Enroll & Study Courses" as UC_Study
+        usecase "Take Quizzes & Track Progress" as UC_Quiz
+        usecase "Author Courses & Quizzes" as UC_AuthorCourse
+    }
+
+    ' --- 3. Squad Projects & Collaboration ---
+    package "Squad Projects" {
+        usecase "Join & Work on Squad Projects" as UC_SquadWork
+        usecase "Review & Validate Deliverables" as UC_ReviewSquad
+        usecase "Create & Oversee Projects" as UC_ManageProjects
+    }
+
+    ' --- 4. Community & AI Assistance ---
+    package "Community & AI Assistant" {
+        usecase "Participate in Forum Discussions" as UC_Forum
+        usecase "Consult CloudLab AI Assistant" as UC_AI
+        usecase "Publish Platform Announcements" as UC_Announce
+    }
+}
+
+' ==============================================================================
+' STUDENT ASSOCIATIONS (Left to Subsystems)
+' ==============================================================================
+Student --> UC_Auth
+Student --> UC_Study
+Student --> UC_Quiz
+Student --> UC_SquadWork
+Student --> UC_Forum
+Student --> UC_AI
+
+' ==============================================================================
+' INSTRUCTOR ASSOCIATIONS (Right to Subsystems)
+' ==============================================================================
+Instructor --> UC_AuthorCourse
+Instructor --> UC_ReviewSquad
+Instructor --> UC_ManageProjects
+Instructor --> UC_Announce
+
+' ==============================================================================
+' ADMINISTRATOR ASSOCIATIONS
+' ==============================================================================
+Admin --> UC_AdminUsers
+
+' ==============================================================================
+' EXTERNAL INTEGRATION
+' ==============================================================================
+UC_AI --> Gemini : <<queries>>
+
+@enduml

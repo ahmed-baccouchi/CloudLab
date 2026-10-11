@@ -1,0 +1,159 @@
+@startuml CloudLab_CICD_Activity_Diagram
+!theme plain
+skinparam shadowing false
+skinparam roundcorner 10
+skinparam defaultFontName "Helvetica", "Segoe UI", Arial, sans-serif
+skinparam defaultFontSize 12
+
+skinparam activity {
+    BackgroundColor #f0fdf4
+    BorderColor #16a34a
+    BorderThickness 1.5
+    FontColor #0f172a
+    FontSize 12
+    DiamondBackgroundColor #fef9c3
+    DiamondBorderColor #ca8a04
+    DiamondFontColor #0f172a
+}
+
+skinparam arrow {
+    Color #0284c7
+    Thickness 1.3
+}
+
+skinparam partition {
+    BackgroundColor #f8fafc
+    BorderColor #64748b
+    BorderThickness 1.2
+    FontColor #0f172a
+    FontStyle bold
+    FontSize 13
+}
+
+title **CloudLab CI/CD Automated Pipeline - Activity Diagram**\n(Automated Tests, Docker Multi-Image Build, Security Scan & Kubernetes Rollout)
+
+start
+
+:Developer pushes code or merges Pull Request to **main** branch;
+
+partition "Stage 1: Code Checkout & Static Analysis" {
+    :Trigger CI/CD Runner (e.g. GitHub Actions / GitLab CI);
+    :Checkout CloudLab Monorepo source code;
+    :Set up Node.js runtime & cache dependencies;
+    :Install npm monorepo workspaces (`npm ci`);
+    
+    fork
+        :Run ESLint & Code Formatting Checks;
+    fork again
+        :Run TypeScript Type Checks (`tsc -b`);
+    end fork
+    
+    if (Linting or Type Check passes?) then (yes)
+        #LightCyan:Static Analysis Passed;
+    else (no)
+        #MistyRose:Static Analysis Failed;
+        :Send Failure Notification to Developer;
+        end
+    endif
+}
+
+partition "Stage 2: Automated Testing" {
+    fork
+        :Run Auth Service Unit & Integration Tests;
+    fork again
+        :Run Learning Service Unit & Integration Tests;
+    fork again
+        :Run Project Service Unit & Integration Tests;
+    fork again
+        :Run Progress Service Unit & Integration Tests;
+    fork again
+        :Run Communication Service Tests\n(Forum, Announcements, Notifications);
+    fork again
+        :Run API Gateway Routing & Proxy Tests;
+    fork again
+        :Run Frontend Vite & Component Tests;
+    end fork
+
+    if (All test suites pass successfully?) then (yes)
+        #LightCyan:All Tests Passed (Coverage Met);
+    else (no)
+        #MistyRose:Test Failures Detected;
+        :Generate Test Failure Report;
+        :Notify Commit Author via Slack / Email;
+        end
+    endif
+}
+
+partition "Stage 3: Docker Container Build & Security Scan" {
+    :Generate Image Tags using Git Commit SHA & SemVer;
+    
+    fork
+        :Build Docker Image: **cloudlab-auth-service**;
+    fork again
+        :Build Docker Image: **cloudlab-learning-service**;
+    fork again
+        :Build Docker Image: **cloudlab-project-service**;
+    fork again
+        :Build Docker Image: **cloudlab-progress-service**;
+    fork again
+        :Build Docker Image: **cloudlab-communication-service**;
+    fork again
+        :Build Docker Image: **cloudlab-api-gateway**;
+    fork again
+        :Build Docker Image: **cloudlab-frontend** (Vite + Nginx);
+    end fork
+
+    :Scan Container Images for CVEs (Trivy / Snyk);
+    if (Critical CVEs detected?) then (yes)
+        #MistyRose:Security Vulnerability Gate Failed;
+        :Block Deployment & Alert Security Team;
+        end
+    else (no)
+        #LightCyan:Security Scan Passed;
+    endif
+}
+
+partition "Stage 4: Container Registry Push" {
+    :Authenticate with Container Registry\n(Docker Hub / GitHub Packages / AWS ECR);
+    :Push all tagged microservice Docker images;
+    :Tag images as `:latest` & `:<git-sha>`;
+}
+
+partition "Stage 5: Kubernetes Deployment (CD)" {
+    :Authenticate with target Kubernetes Cluster via ServiceAccount / OIDC;
+    :Set active namespace to `cloudlab-prod`;
+    
+    :Update K8s Manifests / Helm Values with new Image Tags;
+    
+    :Run Database Migration / Init Job (if schema changes exist);
+    if (Migration Job succeeded?) then (yes)
+        :Proceed to rolling deployment;
+    else (no)
+        #MistyRose:DB Migration Failed;
+        :Halt deployment & send alert;
+        end
+    endif
+
+    :Apply manifests (`kubectl apply` / `helm upgrade`);
+    :Execute Zero-Downtime Rolling Update on Pods;
+    :Await Deployment Rollout Status\n(`kubectl rollout status deployment/...`);
+}
+
+partition "Stage 6: Health Checks & Verification" {
+    :Kubernetes Liveness & Readiness Probes evaluate running Pods;
+    :Execute Synthetic HTTP Health Smoke Tests\n(Verify `/health` and Ingress Gateway);
+    
+    if (All services healthy & responding?) then (yes)
+        #LightGreen:Production Deployment Succeeded!;
+        :Update deployment status in Git commit / PR;
+        :Send Success Notification to Discord / Slack;
+        stop
+    else (no)
+        #MistyRose:Deployment Unhealthy / Probe Timeout;
+        :Execute Automated Rollback\n(`kubectl rollout undo deployment/...`);
+        :Notify DevOps Team with Incident Alert;
+        end
+    endif
+}
+
+@enduml

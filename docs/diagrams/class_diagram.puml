@@ -1,0 +1,379 @@
+@startuml CloudLab_Class_Diagram
+!theme plain
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam classAttributeIconSize 0
+skinparam defaultFontName "Helvetica", "Segoe UI", Arial, sans-serif
+skinparam defaultFontSize 11
+
+skinparam package {
+    BackgroundColor #f8fafc
+    BorderColor #64748b
+    BorderThickness 1.2
+    FontColor #0f172a
+    FontStyle bold
+    FontSize 13
+}
+
+skinparam class {
+    BackgroundColor #ffffff
+    BorderColor #0284c7
+    BorderThickness 1.2
+    HeaderBackgroundColor #e0f2fe
+    FontColor #0f172a
+    FontSize 11
+    AttributeFontColor #334155
+    AttributeFontSize 10
+}
+
+skinparam enum {
+    BackgroundColor #fefce8
+    BorderColor #ca8a04
+    HeaderBackgroundColor #fef08a
+}
+
+title **CloudLab Platform - Domain Class Diagram**\n(Excluding Challenge Service)
+
+' ==============================================================================
+' AUTHENTICATION & USER MANAGEMENT DOMAIN
+' ==============================================================================
+package "Authentication & Identity Domain" {
+    enum UserRole {
+        STUDENT
+        INSTRUCTOR
+        ADMIN
+    }
+
+    enum UserStatus {
+        ACTIVE
+        SUSPENDED
+        PENDING_VERIFICATION
+    }
+
+    class User {
+        - id: String [PK]
+        - email: String
+        - passwordHash: String
+        - firstName: String
+        - lastName: String
+        - role: UserRole
+        - status: UserStatus
+        - avatarUrl: String
+        - createdAt: DateTime
+        - updatedAt: DateTime
+        + register(): Boolean
+        + verifyPassword(plainText: String): Boolean
+        + changeRole(newRole: UserRole): Void
+    }
+
+    class UserProfile {
+        - userId: String [FK]
+        - bio: String
+        - githubUrl: String
+        - linkedinUrl: String
+        - preferredTheme: String
+        + updateProfile(): Void
+    }
+
+    class RefreshToken {
+        - id: String [PK]
+        - userId: String [FK]
+        - token: String
+        - expiresAt: DateTime
+        - isRevoked: Boolean
+        + isValid(): Boolean
+        + revoke(): Void
+    }
+
+    User "1" *-- "1" UserProfile : has
+    User "1" o-- "0..*" RefreshToken : maintains
+    User ..> UserRole : typed by
+    User ..> UserStatus : typed by
+}
+
+' ==============================================================================
+' LEARNING MANAGEMENT DOMAIN
+' ==============================================================================
+package "Learning Management Domain" {
+    enum CourseDifficulty {
+        BEGINNER
+        INTERMEDIATE
+        ADVANCED
+    }
+
+    enum LessonType {
+        VIDEO
+        READING
+        QUIZ
+        PRACTICE
+    }
+
+    class Track {
+        - id: String [PK]
+        - title: String
+        - slug: String
+        - description: String
+        - isPublished: Boolean
+        - orderIndex: Integer
+        + addCourse(course: Course): Void
+    }
+
+    class Course {
+        - id: String [PK]
+        - trackId: String [FK]
+        - instructorId: String [FK]
+        - title: String
+        - slug: String
+        - description: String
+        - difficulty: CourseDifficulty
+        - estimatedHours: Integer
+        - isPublished: Boolean
+        + calculateCompletionRate(): Float
+    }
+
+    class Module {
+        - id: String [PK]
+        - courseId: String [FK]
+        - title: String
+        - description: String
+        - orderIndex: Integer
+        + getDuration(): Integer
+    }
+
+    class Lesson {
+        - id: String [PK]
+        - moduleId: String [FK]
+        - title: String
+        - type: LessonType
+        - content: String
+        - durationMinutes: Integer
+        - orderIndex: Integer
+        + markCompleted(userId: String): Void
+    }
+
+    class Quiz {
+        - id: String [PK]
+        - lessonId: String [FK]
+        - passingScore: Integer
+        - timeLimitMinutes: Integer
+        + evaluateSubmission(answers: Map): Integer
+    }
+
+    class QuizQuestion {
+        - id: String [PK]
+        - quizId: String [FK]
+        - questionText: String
+        - options: List<String>
+        - correctOptionIndex: Integer
+        - explanation: String
+    }
+
+    class CourseEnrollment {
+        - id: String [PK]
+        - userId: String [FK]
+        - courseId: String [FK]
+        - enrolledAt: DateTime
+        - completedAt: DateTime
+        - progressPercentage: Float
+        + updateProgress(): Void
+    }
+
+    Track "0..1" *-- "0..*" Course : organizes
+    Course "1" *-- "1..*" Module : contains
+    Module "1" *-- "1..*" Lesson : contains
+    Lesson "0..1" *-- "0..1" Quiz : assesses
+    Quiz "1" *-- "1..*" QuizQuestion : contains
+    User "1" --> "0..*" CourseEnrollment : enrolls
+    Course "1" <-- "0..*" CourseEnrollment : for
+}
+
+' ==============================================================================
+' PROGRESS & SKILLS DOMAIN
+' ==============================================================================
+package "Progress & Skills Domain" {
+    class UserProgress {
+        - id: String [PK]
+        - userId: String [FK]
+        - totalPoints: Integer
+        - currentStreakDays: Integer
+        - completedLessonsCount: Integer
+        - completedCoursesCount: Integer
+        - lastActivityAt: DateTime
+        + addPoints(points: Integer): Void
+        + updateStreak(): Void
+    }
+
+    class SkillMetric {
+        - id: String [PK]
+        - userId: String [FK]
+        - skillName: String
+        - proficiencyScore: Float
+        - validatedProjectsCount: Integer
+        + recalculateLevel(): Void
+    }
+
+    User "1" *-- "1" UserProgress : tracks
+    User "1" o-- "0..*" SkillMetric : masters
+}
+
+' ==============================================================================
+' SQUAD PROJECTS & TEAM COLLABORATION DOMAIN
+' ==============================================================================
+package "Squad Projects Domain" {
+    enum ProjectStatus {
+        DRAFT
+        RECRUITING
+        IN_PROGRESS
+        COMPLETED
+        CANCELLED
+    }
+
+    enum TaskStatus {
+        TODO
+        IN_PROGRESS
+        SUBMITTED
+        IN_REVIEW
+        VALIDATED
+        REJECTED
+    }
+
+    class Project {
+        - id: String [PK]
+        - ownerId: String [FK]
+        - title: String
+        - description: String
+        - status: ProjectStatus
+        - maxMembers: Integer
+        - gitRepositoryUrl: String
+        - createdAt: DateTime
+        + startProject(): Void
+        + completeProject(): Void
+    }
+
+    class ProjectMember {
+        - id: String [PK]
+        - projectId: String [FK]
+        - userId: String [FK]
+        - role: String
+        - joinedAt: DateTime
+    }
+
+    class ProjectTask {
+        - id: String [PK]
+        - projectId: String [FK]
+        - assignedUserId: String [FK]
+        - title: String
+        - description: String
+        - status: TaskStatus
+        - deadline: DateTime
+        + submitWork(evidence: TaskEvidence): Void
+        + validateTask(reviewerId: String): Void
+    }
+
+    class TaskEvidence {
+        - id: String [PK]
+        - taskId: String [FK]
+        - submittedByUserId: String [FK]
+        - evidenceKind: String
+        - evidenceUrl: String
+        - commentary: String
+        - isApproved: Boolean
+    }
+
+    class ProjectApplication {
+        - id: String [PK]
+        - projectId: String [FK]
+        - applicantUserId: String [FK]
+        - motivationNote: String
+        - status: String
+        + accept(): Void
+        + reject(): Void
+    }
+
+    Project "1" *-- "1..*" ProjectMember : comprises
+    Project "1" *-- "0..*" ProjectTask : coordinates
+    ProjectTask "1" o-- "0..*" TaskEvidence : validated by
+    Project "1" *-- "0..*" ProjectApplication : receives
+    User "1" --> "0..*" ProjectMember : acts as
+    User "1" --> "0..*" ProjectApplication : applies
+}
+
+' ==============================================================================
+' COMMUNICATION, COMMUNITY & NOTIFICATIONS DOMAIN
+' ==============================================================================
+package "Communication & Community Domain" {
+    enum AnnouncementType {
+        GENERAL
+        IMPORTANT
+        COURSE
+        PROJECT
+        EVENT
+    }
+
+    class Announcement {
+        - id: String [PK]
+        - authorId: String [FK]
+        - title: String
+        - content: String
+        - type: AnnouncementType
+        - targetAudience: String
+        - isPublished: Boolean
+        - publishedAt: DateTime
+        + markAsRead(userId: String): Void
+    }
+
+    class ForumCategory {
+        - id: String [PK]
+        - name: String
+        - slug: String
+        - description: String
+        - icon: String
+        + getDiscussionsCount(): Integer
+    }
+
+    class Discussion {
+        - id: String [PK]
+        - categoryId: String [FK]
+        - authorId: String [FK]
+        - title: String
+        - content: String
+        - status: String
+        - acceptedCommentId: String
+        - viewsCount: Integer
+        - createdAt: DateTime
+        + markSolved(commentId: String): Void
+        + incrementView(): Void
+    }
+
+    class Comment {
+        - id: String [PK]
+        - discussionId: String [FK]
+        - authorId: String [FK]
+        - content: String
+        - isAcceptedAnswer: Boolean
+        - createdAt: DateTime
+        + toggleAccepted(): Void
+    }
+
+    class Notification {
+        - id: String [PK]
+        - userId: String [FK]
+        - type: String
+        - title: String
+        - message: String
+        - referenceId: String
+        - linkUrl: String
+        - isRead: Boolean
+        - createdAt: DateTime
+        + markRead(): Void
+    }
+
+    ForumCategory "1" *-- "0..*" Discussion : contains
+    Discussion "1" *-- "0..*" Comment : replies
+    User "1" --> "0..*" Discussion : authors
+    User "1" --> "0..*" Comment : posts
+    User "1" --> "0..*" Announcement : reads/publishes
+    User "1" *-- "0..*" Notification : receives
+}
+
+@enduml

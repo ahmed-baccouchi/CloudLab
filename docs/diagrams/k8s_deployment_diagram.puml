@@ -1,0 +1,212 @@
+@startuml CloudLab_K8s_Deployment_Diagram
+!theme plain
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam defaultFontName "Helvetica", "Segoe UI", Arial, sans-serif
+skinparam defaultFontSize 11
+
+skinparam node {
+    BackgroundColor #f8fafc
+    BorderColor #475569
+    BorderThickness 1.5
+    FontColor #0f172a
+    FontSize 12
+    FontStyle bold
+}
+
+skinparam package {
+    BackgroundColor #f1f5f9
+    BorderColor #64748b
+    BorderThickness 1.2
+    FontColor #0f172a
+    FontSize 12
+}
+
+skinparam component {
+    BackgroundColor #ffffff
+    BorderColor #0284c7
+    BorderThickness 1.2
+    FontColor #0f172a
+    FontSize 11
+}
+
+skinparam database {
+    BackgroundColor #fefce8
+    BorderColor #ca8a04
+    BorderThickness 1.3
+    FontColor #0f172a
+    FontSize 11
+}
+
+skinparam arrow {
+    Color #0284c7
+    Thickness 1.3
+    FontColor #334155
+    FontSize 10
+}
+
+title **CloudLab Platform - Docker & Kubernetes Deployment Architecture**\n(Excluding Challenge Service)
+
+' ==============================================================================
+' CLIENT ENVIRONMENT
+' ==============================================================================
+node "Client Devices\n(Students, Instructors, Admins)" as Clients {
+    component [Web Browser / SPA Client\n(React 18 + Vite)] as Browser
+}
+
+' ==============================================================================
+' EXTERNAL CLOUD SERVICES & REGISTRIES
+' ==============================================================================
+cloud "External Services & Registries" {
+    component [Docker Container Registry\n(Docker Hub / GHCR)] as DockerRegistry
+    component [Google Gemini AI API\n(generativelanguage.googleapis.com)] as GeminiAPI
+}
+
+' ==============================================================================
+' KUBERNETES INFRASTRUCTURE
+' ==============================================================================
+node "Kubernetes Cluster: cloudlab-cluster\n(Managed K8s / EKS / GKE / On-Prem)" as K8sCluster {
+
+    ' --------------------------------------------------------------------------
+    ' INGRESS CONTROLLER
+    ' --------------------------------------------------------------------------
+    package "Ingress Controller & TLS Termination" {
+        component [Cloud Load Balancer\n(Public IP / SSL Cert)] as CloudLB
+        component [NGINX Ingress Controller\n(Rules: / -> Frontend, /api/* -> Gateway, /ws/* -> Gateway)] as IngressController
+    }
+
+    ' --------------------------------------------------------------------------
+    ' PRODUCTION NAMESPACE
+    ' --------------------------------------------------------------------------
+    package "Kubernetes Namespace: cloudlab-prod" {
+
+        ' Configuration & Secrets
+        package "Config & Secret Management" {
+            component [ConfigMaps\n(Port mappings, DB Hosts, Log Levels)] as K8sConfigMap
+            component [K8s Secrets\n(JWT_SECRET, DB_PASSWORD, GEMINI_API_KEY)] as K8sSecret
+        }
+
+        ' FRONTEND TIER
+        node "Worker Nodes: Frontend Deployment" {
+            component [k8s Service: frontend-svc\n(ClusterIP: Port 80)] as FrontendSvc
+            package "Pod: cloudlab-frontend [2 Replicas]" {
+                component [Docker Container: cloudlab-frontend\n(Nginx + Built React Assets)] as FrontendContainer
+            }
+        }
+
+        ' API GATEWAY TIER
+        node "Worker Nodes: API Gateway Deployment" {
+            component [k8s Service: api-gateway-svc\n(ClusterIP: Port 4000)] as GatewaySvc
+            package "Pod: cloudlab-api-gateway [2 Replicas]" {
+                component [Docker Container: cloudlab-api-gateway\n(Express Reverse Proxy + Rate Limit + CORS)] as GatewayContainer
+            }
+        }
+
+        ' BACKEND MICROSERVICES TIER
+        package "Backend Microservices (Container Runtime: containerd/Docker)" {
+
+            ' Auth Service
+            package "Pod: auth-service-pod [2 Replicas]" {
+                component [Docker Container: cloudlab-auth-service\n(Node.js / Express : Port 4001)] as AuthContainer
+            }
+            component [k8s Service: auth-svc\n(ClusterIP: 4001)] as AuthSvc
+
+            ' Learning Service
+            package "Pod: learning-service-pod [2 Replicas]" {
+                component [Docker Container: cloudlab-learning-service\n(Node.js / Express : Port 4002)] as LearningContainer
+            }
+            component [k8s Service: learning-svc\n(ClusterIP: 4002)] as LearningSvc
+
+            ' Progress Service
+            package "Pod: progress-service-pod [2 Replicas]" {
+                component [Docker Container: cloudlab-progress-service\n(Node.js / Express : Port 4004)] as ProgressContainer
+            }
+            component [k8s Service: progress-svc\n(ClusterIP: 4004)] as ProgressSvc
+
+            ' Project Service
+            package "Pod: project-service-pod [2 Replicas]" {
+                component [Docker Container: cloudlab-project-service\n(Node.js / Express : Port 4005)] as ProjectContainer
+            }
+            component [k8s Service: project-svc\n(ClusterIP: 4005)] as ProjectSvc
+
+            ' Communication Service
+            package "Pod: communication-service-pod [2 Replicas]" {
+                component [Docker Container: cloudlab-communication-service\n(Express REST + WebSocket /ws/notifications : Port 4006)] as CommContainer
+            }
+            component [k8s Service: communication-svc\n(ClusterIP: 4006)] as CommSvc
+        }
+
+        ' DATA & PERSISTENCE TIER
+        package "Persistence Tier (StatefulSet / Managed DB)" {
+            component [k8s Service: mysql-svc\n(ClusterIP: Port 3306)] as MySQLSvc
+            
+            node "Pod: mysql-statefulset" {
+                component [Docker Container: mysql:8.0] as MySQLContainer
+                
+                database "MySQL Database Cluster" {
+                    database [cloudlab_auth] as DB_Auth
+                    database [cloudlab_learning] as DB_Learning
+                    database [cloudlab_progress] as DB_Progress
+                    database [cloudlab_projects] as DB_Projects
+                    database [cloudlab_communication] as DB_Comm
+                }
+            }
+            
+            storage "PersistentVolumeClaim (PVC)\n(StorageClass: standard SSD, 100Gi)" as StoragePVC
+        }
+    }
+}
+
+' ==============================================================================
+' NETWORKING & TRAFFIC FLOWS
+' ==============================================================================
+Browser --> CloudLB : HTTPS / WSS Request (Port 443)
+CloudLB --> IngressController : Route Traffic
+
+' Ingress routing
+IngressController --> FrontendSvc : Path: / (HTML, CSS, JS)
+IngressController --> GatewaySvc : Path: /api/v1/* & /ws/*
+
+FrontendSvc --> FrontendContainer
+GatewaySvc --> GatewayContainer
+
+' Gateway proxying to internal services
+GatewayContainer --> AuthSvc : Proxy /api/v1/auth
+GatewayContainer --> LearningSvc : Proxy /api/v1/learning
+GatewayContainer --> ProgressSvc : Proxy /api/v1/progress
+GatewayContainer --> ProjectSvc : Proxy /api/v1/projects
+GatewayContainer --> CommSvc : Proxy /api/v1/communication & /ws/*
+
+' Services connecting to Pods
+AuthSvc --> AuthContainer
+LearningSvc --> LearningContainer
+ProgressSvc --> ProgressContainer
+ProjectSvc --> ProjectContainer
+CommSvc --> CommContainer
+
+' Inter-service & Database access
+AuthContainer --> MySQLSvc : Port 3306
+LearningContainer --> MySQLSvc : Port 3306
+ProgressContainer --> MySQLSvc : Port 3306
+ProjectContainer --> MySQLSvc : Port 3306
+CommContainer --> MySQLSvc : Port 3306
+
+MySQLSvc --> MySQLContainer
+MySQLContainer --> DB_Auth
+MySQLContainer --> DB_Learning
+MySQLContainer --> DB_Progress
+MySQLContainer --> DB_Projects
+MySQLContainer --> DB_Comm
+MySQLContainer ..> StoragePVC : Mounted to /var/lib/mysql
+
+' External communication
+CommContainer --> GeminiAPI : HTTPS REST (AI Chat queries)
+DockerRegistry ..> K8sCluster : Container Images pull (ImagePullSecrets)
+
+' Configurations
+K8sConfigMap ..> GatewayContainer : envFrom
+K8sConfigMap ..> CommContainer : envFrom
+K8sSecret ..> AuthContainer : envFrom
+K8sSecret ..> CommContainer : envFrom
+
+@enduml

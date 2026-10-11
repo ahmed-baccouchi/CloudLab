@@ -1,0 +1,231 @@
+﻿version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: cloudlab-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: cloudlab_auth
+      MYSQL_USER: cloudlab
+      MYSQL_PASSWORD: cloudlabpassword
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./scripts/init-mysql.sql:/docker-entrypoint-initdb.d/init-mysql.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cloudlab-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: cloudlab-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - cloudlab-network
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: cloudlab-rabbitmq
+    restart: unless-stopped
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: cloudlab
+      RABBITMQ_DEFAULT_PASS: cloudlabpassword
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - cloudlab-network
+
+  auth-service:
+    build:
+      context: .
+      dockerfile: apps/auth-service/Dockerfile
+    container_name: cloudlab-auth-service
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 4001
+      DATABASE_HOST: mysql
+      DATABASE_PORT: 3306
+      DATABASE_USER: cloudlab
+      DATABASE_PASSWORD: cloudlabpassword
+      DATABASE_NAME: cloudlab_auth
+      JWT_SECRET: super-secret-cloudlab-jwt-access-key-development-only-replace-in-prod
+      JWT_REFRESH_SECRET: super-secret-cloudlab-jwt-refresh-key-development-only-replace-in-prod
+    ports:
+      - "4001:4001"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - cloudlab-network
+
+  learning-service:
+    build:
+      context: .
+      dockerfile: apps/learning-service/Dockerfile
+    container_name: cloudlab-learning-service
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 4002
+      DATABASE_HOST: mysql
+      DATABASE_PORT: 3306
+      DATABASE_USER: cloudlab
+      DATABASE_PASSWORD: cloudlabpassword
+      DATABASE_NAME: cloudlab_learning
+      JWT_SECRET: super-secret-cloudlab-jwt-access-key-development-only-replace-in-prod
+    ports:
+      - "4002:4002"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - cloudlab-network
+
+  progress-service:
+    build:
+      context: .
+      dockerfile: apps/progress-service/Dockerfile
+    container_name: cloudlab-progress-service
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 4004
+      DATABASE_HOST: mysql
+      DATABASE_PORT: 3306
+      DATABASE_USER: cloudlab
+      DATABASE_PASSWORD: cloudlabpassword
+      DATABASE_NAME: cloudlab_progress
+      JWT_SECRET: super-secret-cloudlab-jwt-access-key-development-only-replace-in-prod
+    ports:
+      - "4004:4004"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - cloudlab-network
+
+  project-service:
+    build:
+      context: .
+      dockerfile: apps/project-service/Dockerfile
+    container_name: cloudlab-project-service
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 4005
+      DATABASE_HOST: mysql
+      DATABASE_PORT: 3306
+      DATABASE_USER: cloudlab
+      DATABASE_PASSWORD: cloudlabpassword
+      DATABASE_NAME: cloudlab_projects
+      JWT_SECRET: super-secret-cloudlab-jwt-access-key-development-only-replace-in-prod
+    ports:
+      - "4005:4005"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - cloudlab-network
+
+  communication-service:
+    build:
+      context: .
+      dockerfile: apps/communication-service/Dockerfile
+    container_name: cloudlab-communication-service
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 4006
+      DATABASE_HOST: mysql
+      DATABASE_PORT: 3306
+      DATABASE_USER: cloudlab
+      DATABASE_PASSWORD: cloudlabpassword
+      DATABASE_NAME: cloudlab_communication
+      JWT_SECRET: super-secret-cloudlab-jwt-access-key-development-only-replace-in-prod
+      LLM_PROVIDER: gemini
+      LLM_API_KEY: ${LLM_API_KEY}
+    ports:
+      - "4006:4006"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - cloudlab-network
+
+  face-ai-service:
+    build:
+      context: .
+      dockerfile: apps/face-ai-service/Dockerfile
+    container_name: cloudlab-face-ai-service
+    restart: unless-stopped
+    environment:
+      PORT: 5000
+    ports:
+      - "5000:5000"
+    networks:
+      - cloudlab-network
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: apps/api-gateway/Dockerfile
+    container_name: cloudlab-api-gateway
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      AUTH_SERVICE_URL: http://auth-service:4001
+      LEARNING_SERVICE_URL: http://learning-service:4002
+      PROGRESS_SERVICE_URL: http://progress-service:4004
+      PROJECT_SERVICE_URL: http://project-service:4005
+      COMMUNICATION_SERVICE_URL: http://communication-service:4006
+      FACE_AI_SERVICE_URL: http://face-ai-service:5000
+      JWT_SECRET: super-secret-cloudlab-jwt-access-key-development-only-replace-in-prod
+    ports:
+      - "4000:4000"
+    depends_on:
+      - auth-service
+      - learning-service
+      - progress-service
+      - project-service
+      - communication-service
+      - face-ai-service
+    networks:
+      - cloudlab-network
+
+  frontend:
+    build:
+      context: .
+      dockerfile: apps/frontend/Dockerfile
+    container_name: cloudlab-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - api-gateway
+    networks:
+      - cloudlab-network
+
+volumes:
+  mysql_data:
+  redis_data:
+  rabbitmq_data:
+
+networks:
+  cloudlab-network:
+    driver: bridge

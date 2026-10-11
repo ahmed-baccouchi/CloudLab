@@ -1,0 +1,114 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: communication-service
+  namespace: cloudlab
+  labels:
+    app: communication-service
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: communication-service
+  template:
+    metadata:
+      labels:
+        app: communication-service
+    spec:
+      containers:
+        - name: communication-service
+          image: ahmedbaccouchi/cloudlab-communication-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 4006
+              name: http
+          env:
+            - name: NODE_ENV
+              valueFrom:
+                configMapKeyRef:
+                  name: cloudlab-config
+                  key: NODE_ENV
+            - name: PORT
+              value: "4006"
+            - name: DATABASE_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: cloudlab-config
+                  key: DATABASE_HOST
+            - name: DATABASE_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: cloudlab-config
+                  key: DATABASE_PORT
+            - name: DATABASE_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: cloudlab-config
+                  key: DATABASE_USER
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: cloudlab-secrets
+                  key: DATABASE_PASSWORD
+            - name: DATABASE_NAME
+              value: "cloudlab_communication"
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: cloudlab-secrets
+                  key: JWT_SECRET
+            - name: LLM_PROVIDER
+              valueFrom:
+                configMapKeyRef:
+                  name: cloudlab-config
+                  key: LLM_PROVIDER
+            - name: LLM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: cloudlab-secrets
+                  key: LLM_API_KEY
+            - name: LLM_MODEL
+              valueFrom:
+                configMapKeyRef:
+                  name: cloudlab-config
+                  key: LLM_MODEL
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 4006
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 4006
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: communication-service
+  namespace: cloudlab
+  labels:
+    app: communication-service
+spec:
+  type: ClusterIP
+  ports:
+    - port: 4006
+      targetPort: 4006
+      name: http
+  selector:
+    app: communication-service
