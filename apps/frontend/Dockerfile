@@ -1,4 +1,5 @@
-﻿FROM node:20-alpine AS builder
+# Build v2 - nginx.conf BOM fix
+FROM node:20-alpine AS builder
 WORKDIR /app
 COPY package*.json tsconfig.base.json ./
 COPY packages/ ./packages/

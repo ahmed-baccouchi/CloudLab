@@ -1,4 +1,4 @@
-﻿version: '3.8'
+version: '3.8'
 
 services:
   mysql:
@@ -167,20 +167,7 @@ services:
     networks:
       - cloudlab-network
 
-  face-ai-service:
-    build:
-      context: .
-      dockerfile: apps/face-ai-service/Dockerfile
-    container_name: cloudlab-face-ai-service
-    restart: unless-stopped
-    environment:
-      PORT: 5000
-    ports:
-      - "5000:5000"
-    networks:
-      - cloudlab-network
-
-  api-gateway:
+ api-gateway:
     build:
       context: .
       dockerfile: apps/api-gateway/Dockerfile
@@ -193,9 +180,7 @@ services:
       LEARNING_SERVICE_URL: http://learning-service:4002
       PROGRESS_SERVICE_URL: http://progress-service:4004
       PROJECT_SERVICE_URL: http://project-service:4005
-      COMMUNICATION_SERVICE_URL: http://communication-service:4006
-      FACE_AI_SERVICE_URL: http://face-ai-service:5000
-      JWT_SECRET: super-secret-cloudlab-jwt-access-key-development-only-replace-in-prod
+      COMMUNICATION_SERVICE_URL: http://communication-service:4006      JWT_SECRET: super-secret-cloudlab-jwt-access-key-development-only-replace-in-prod
     ports:
       - "4000:4000"
     depends_on:
@@ -203,9 +188,7 @@ services:
       - learning-service
       - progress-service
       - project-service
-      - communication-service
-      - face-ai-service
-    networks:
+      - communication-service    networks:
       - cloudlab-network
 
   frontend:

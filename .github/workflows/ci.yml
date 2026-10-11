@@ -1,4 +1,4 @@
-﻿name: CloudLab CI Pipeline
+name: CloudLab CI Pipeline
 
 on:
   push:

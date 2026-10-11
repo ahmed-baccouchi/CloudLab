@@ -1,4 +1,4 @@
-﻿name: CloudLab CD Pipeline
+name: CloudLab CD Pipeline
 
 on:
   push:
