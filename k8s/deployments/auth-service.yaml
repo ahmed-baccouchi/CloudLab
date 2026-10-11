@@ -6,7 +6,7 @@ metadata:
   labels:
     app: auth-service
 spec:
-  replicas: 2
+  replicas: 1
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -20,10 +20,17 @@ spec:
       labels:
         app: auth-service
     spec:
+      initContainers:
+        - name: create-uploads-dir
+          image: busybox
+          command: ["sh", "-c", "mkdir -p /app/uploads/avatars && chmod -R 777 /app/uploads"]
+          volumeMounts:
+            - name: uploads
+              mountPath: /app/uploads
       containers:
         - name: auth-service
           image: ahmedbaccouchi/cloudlab-auth-service:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           ports:
             - containerPort: 4001
               name: http
@@ -67,18 +74,9 @@ spec:
                 secretKeyRef:
                   name: cloudlab-secrets
                   key: JWT_REFRESH_SECRET
-          livenessProbe:
-            httpGet:
-              path: /health
-              port: 4001
-            initialDelaySeconds: 15
-            periodSeconds: 10
-          readinessProbe:
-            httpGet:
-              path: /health
-              port: 4001
-            initialDelaySeconds: 10
-            periodSeconds: 5
+          volumeMounts:
+            - name: uploads
+              mountPath: /app/uploads
           resources:
             requests:
               cpu: "100m"
@@ -86,6 +84,9 @@ spec:
             limits:
               cpu: "500m"
               memory: "256Mi"
+      volumes:
+        - name: uploads
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
