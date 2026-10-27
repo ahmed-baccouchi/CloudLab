@@ -35,9 +35,13 @@ router.post('/lessons/:id/quiz', auth, LearningController.submitQuiz);
 router.get('/modules/:id/access', auth, LearningController.checkModuleAccess);
 router.get('/modules/:id/quiz', auth, LearningController.getModuleQuiz);
 router.post('/modules/:id/quiz', auth, LearningController.submitModuleQuiz);
+router.put('/modules/:id/quiz', auth, requireAuthor, LearningController.saveModuleQuiz);
+router.post('/modules/:id/quiz/save', auth, requireAuthor, LearningController.saveModuleQuiz);
 router.post('/modules/:id/quiz/generate', auth, requireAuthor, LearningController.generateAIModuleQuiz);
 router.get('/courses/:id/quiz', auth, LearningController.getCourseQuiz);
 router.post('/courses/:id/quiz', auth, LearningController.submitCourseQuiz);
+router.put('/courses/:id/quiz', auth, requireAuthor, LearningController.saveCourseQuiz);
+router.post('/courses/:id/quiz/save', auth, requireAuthor, LearningController.saveCourseQuiz);
 router.post('/courses/:id/quiz/generate', auth, requireAuthor, LearningController.generateAICourseQuiz);
 
 // ==========================================

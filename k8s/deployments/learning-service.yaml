@@ -33,8 +33,7 @@ spec:
                 configMapKeyRef:
                   name: cloudlab-config
                   key: NODE_ENV
-            - name: PORT
-              value: "4002"
+            - name: LEARNING_SERVICE_PORT`n              value: "4002"
             - name: DATABASE_HOST
               valueFrom:
                 configMapKeyRef:
@@ -97,3 +96,4 @@ spec:
       name: http
   selector:
     app: learning-service
+

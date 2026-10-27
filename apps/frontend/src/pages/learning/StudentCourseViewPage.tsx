@@ -219,6 +219,14 @@ export const StudentCourseViewPage: React.FC = () => {
           } else {
             console.warn('⚠️ [StudentCourseViewPage] No completedLessonIds in enrollment data');
           }
+
+          if (enrollmentData?.passedModuleQuizIds) {
+            const map: Record<string, boolean> = {};
+            enrollmentData.passedModuleQuizIds.forEach((id: string) => {
+              map[id] = true;
+            });
+            setModuleQuizTaken(map);
+          }
         } catch (err) {
           console.warn('Could not fetch enrollment data:', err);
           // Auto-enroll if not enrolled
@@ -231,6 +239,13 @@ export const StudentCourseViewPage: React.FC = () => {
             if (enrollmentData?.completedLessonIds) {
               console.log('✅ [StudentCourseViewPage] Setting completed lessons after enroll:', enrollmentData.completedLessonIds);
               setCompletedLessonIds(new Set(enrollmentData.completedLessonIds));
+            }
+            if (enrollmentData?.passedModuleQuizIds) {
+              const map: Record<string, boolean> = {};
+              enrollmentData.passedModuleQuizIds.forEach((id: string) => {
+                map[id] = true;
+              });
+              setModuleQuizTaken(map);
             }
           } catch (enrollErr) {
             console.error('Failed to enroll:', enrollErr);

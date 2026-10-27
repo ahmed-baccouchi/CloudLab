@@ -235,22 +235,32 @@ export class LearningController {
   static async getModuleQuiz(req: Request, res: Response): Promise<void> {
     try {
       const moduleId = req.params.id;
-      const { userId } = LearningController.getUserFromReq(req);
+      const { userId, role } = LearningController.getUserFromReq(req);
       if (!userId) {
         res.status(401).json({ success: false, error: 'Authentication required' });
         return;
       }
 
-      // Check access gating
-      const access = await LearningService.checkModuleAccess(userId, moduleId);
-      if (access.locked) {
-        res.status(403).json({ success: false, error: 'Locked', message: access.reason });
-        return;
+      const isInstructorOrAdmin = role === 'INSTRUCTOR' || role === 'ADMIN';
+
+      // Check access gating only for students
+      if (!isInstructorOrAdmin) {
+        const access = await LearningService.checkModuleAccess(userId, moduleId);
+        if (access.locked) {
+          res.status(403).json({ success: false, error: 'Locked', message: access.reason });
+          return;
+        }
       }
 
       const quiz = await LearningService.getModuleQuiz(moduleId);
       if (!quiz) {
         res.status(404).json({ success: false, error: 'No quiz found for this module' });
+        return;
+      }
+
+      // If instructor/admin, return full quiz with correct answers for authoring
+      if (isInstructorOrAdmin) {
+        res.json({ success: true, data: quiz });
         return;
       }
 
@@ -275,7 +285,7 @@ export class LearningController {
   static async getCourseQuiz(req: Request, res: Response): Promise<void> {
     try {
       const courseId = req.params.id;
-      const { userId } = LearningController.getUserFromReq(req);
+      const { userId, role } = LearningController.getUserFromReq(req);
       if (!userId) {
         res.status(401).json({ success: false, error: 'Authentication required' });
         return;
@@ -287,7 +297,13 @@ export class LearningController {
         return;
       }
 
-      // Hide correct answers
+      const isInstructorOrAdmin = role === 'INSTRUCTOR' || role === 'ADMIN';
+      if (isInstructorOrAdmin) {
+        res.json({ success: true, data: quiz });
+        return;
+      }
+
+      // Hide correct answers for students
       const sanitizedQuiz = {
         ...quiz,
         questions: quiz.questions.map(q => ({
@@ -298,6 +314,36 @@ export class LearningController {
       };
 
       res.json({ success: true, data: sanitizedQuiz });
+    } catch (err: any) {
+      res.status(400).json({ success: false, error: err.message });
+    }
+  }
+
+  static async saveModuleQuiz(req: Request, res: Response): Promise<void> {
+    try {
+      const moduleId = req.params.id;
+      const { title, passingScore, questions } = req.body;
+      if (!questions || !Array.isArray(questions)) {
+        res.status(400).json({ success: false, error: 'Questions array is required' });
+        return;
+      }
+      const saved = await LearningService.saveManualModuleQuiz(moduleId, { title, passingScore, questions });
+      res.json({ success: true, data: saved, message: 'Module quiz saved successfully' });
+    } catch (err: any) {
+      res.status(400).json({ success: false, error: err.message });
+    }
+  }
+
+  static async saveCourseQuiz(req: Request, res: Response): Promise<void> {
+    try {
+      const courseId = req.params.id;
+      const { title, passingScore, questions, xpOnPass, skillPointsOnPass } = req.body;
+      if (!questions || !Array.isArray(questions)) {
+        res.status(400).json({ success: false, error: 'Questions array is required' });
+        return;
+      }
+      const saved = await LearningService.saveManualCourseQuiz(courseId, { title, passingScore, questions, xpOnPass, skillPointsOnPass });
+      res.json({ success: true, data: saved, message: 'Course final exam saved successfully' });
     } catch (err: any) {
       res.status(400).json({ success: false, error: err.message });
     }

@@ -123,6 +123,14 @@ export const App: React.FC = () => {
           }
         />
         <Route
+          path="/learning/courses/:slug/study"
+          element={
+            <AuthenticatedGuard>
+              <StudentCourseViewPage />
+            </AuthenticatedGuard>
+          }
+        />
+        <Route
           path="/learning/lessons/:id"
           element={
             <AuthenticatedGuard>

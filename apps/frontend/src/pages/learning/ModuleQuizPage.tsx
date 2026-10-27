@@ -99,7 +99,7 @@ export const ModuleQuizPage: React.FC = () => {
         <AlertCircle size={40} color="#ef4444" style={{ margin: '0 auto 16px auto' }} />
         <h2 style={{ fontSize: '20px', fontWeight: 700, marginBottom: '8px' }}>Quiz Not Available</h2>
         <p style={{ color: 'var(--text-secondary)', marginBottom: '24px' }}>
-          {error || 'This module does not have a quiz yet. The instructor needs to generate it.'}
+          {error || 'This module does not have a quiz yet. The instructor needs to create it.'}
         </p>
         <button onClick={handleReturnToCourse} className="btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
           <ArrowLeft size={16} /> Return to Course

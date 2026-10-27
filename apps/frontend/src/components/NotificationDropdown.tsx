@@ -11,6 +11,7 @@ import {
   Info,
 } from 'lucide-react';
 import { communicationApi } from '../api/communication';
+import { projectsApi } from '../api/client';
 import type { NotificationDto } from '@cloudlab/shared-types';
 
 import { getAccessToken } from '../utils/auth';
@@ -44,9 +45,35 @@ export const NotificationDropdown: React.FC = () => {
     try {
       const token = getAccessToken();
       if (!token) return;
-      const list = await communicationApi.getNotifications();
-      setNotifications(list);
-      setUnreadCount(list.filter((n) => !n.isRead).length);
+      const commPromise = communicationApi.getNotifications().catch(() => []);
+      const projPromise = projectsApi.getNotifications().then((res: any) => res.data?.data || []).catch(() => []);
+
+      const [commList, projList] = await Promise.all([commPromise, projPromise]);
+
+      const mappedProjNotifs: NotificationDto[] = (projList || []).map((pn: any) => ({
+        id: pn.id,
+        userId: pn.userId,
+        type: 'PROJECT_EVENT' as const,
+        title: pn.title,
+        message: pn.message,
+        referenceId: pn.projectId,
+        linkUrl: pn.projectId ? `/projects/${pn.projectId}` : '/projects',
+        isRead: !!(pn.read ?? pn.isRead),
+        createdAt: pn.createdAt,
+      }));
+
+      const notifMap = new Map<string, NotificationDto>();
+      [...commList, ...mappedProjNotifs].forEach((n) => {
+        if (!notifMap.has(n.id)) {
+          notifMap.set(n.id, n);
+        }
+      });
+      const combined = Array.from(notifMap.values()).sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+
+      setNotifications(combined);
+      setUnreadCount(combined.filter((n) => !n.isRead).length);
     } catch (err) {
       // Silently fail if not logged in
     }
@@ -111,7 +138,10 @@ export const NotificationDropdown: React.FC = () => {
   const handleMarkAsRead = async (id: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     try {
-      await communicationApi.markNotificationRead(id);
+      await Promise.allSettled([
+        communicationApi.markNotificationRead(id),
+        projectsApi.markNotificationRead(id),
+      ]);
       setNotifications((prev) =>
         prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
       );
@@ -124,7 +154,10 @@ export const NotificationDropdown: React.FC = () => {
   const handleMarkAllRead = async () => {
     try {
       setLoading(true);
-      await communicationApi.markAllNotificationsRead();
+      await Promise.allSettled([
+        communicationApi.markAllNotificationsRead(),
+        ...notifications.filter((n) => !n.isRead).map((n) => projectsApi.markNotificationRead(n.id)),
+      ]);
       setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
       setUnreadCount(0);
     } catch (err) {
@@ -141,6 +174,8 @@ export const NotificationDropdown: React.FC = () => {
     setIsOpen(false);
     if (notif.linkUrl) {
       navigate(notif.linkUrl);
+    } else if (notif.type === 'PROJECT_EVENT') {
+      navigate('/projects');
     } else {
       navigate('/community');
     }

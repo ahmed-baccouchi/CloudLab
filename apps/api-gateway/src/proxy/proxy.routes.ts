@@ -8,7 +8,6 @@ export const setupProxyRoutes = (app: Router): void => {
     changeOrigin: true,
     on: {
       error: (err, _req, res: any) => {
-        console.error('⚠️ [API Gateway Proxy Error]:', err.message);
         if (res && !res.headersSent && typeof res.status === 'function') {
           res.status(503).json({
             success: false,

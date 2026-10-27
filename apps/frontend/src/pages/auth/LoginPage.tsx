@@ -105,15 +105,13 @@ export const LoginPage: React.FC = () => {
             </p>
 
             <div style={{ padding: '16px', borderRadius: '8px', background: 'rgba(0, 0, 0, 0.3)', border: '1px solid var(--border-subtle)', fontFamily: 'JetBrains Mono', fontSize: '12px', color: '#94a3b8' }}>
-              <span style={{ color: '#00d4ff' }}>$</span> cloudlab session resume<br />
-              <span style={{ color: '#10b981' }}>[OK]</span> Authenticated microservices ready<br />
-              <span style={{ color: '#f59e0b' }}>[INFO]</span> 3 live incident challenges in catalog
+              <span style={{ color: '#00d4ff' }}>$</span> Welcome to cloudlab<br />
+              <span style={{ color: '#10b981' }}>[OK]</span> Your cloud journey starts here<br />
+              <span style={{ color: '#f59e0b' }}>[INFO]</span> Explore,learn and manage your cloud environment
             </div>
           </div>
 
-          <div style={{ fontSize: '12px', color: 'var(--text-muted)', paddingTop: '20px', borderTop: '1px solid var(--border-subtle)' }}>
-            Zero simulated toys &bull; Real enterprise skill mastery
-          </div>
+
         </div>
 
         {/* Right Side: Login Form */}

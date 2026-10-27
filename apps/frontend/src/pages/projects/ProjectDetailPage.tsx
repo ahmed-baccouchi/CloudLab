@@ -27,7 +27,10 @@ import {
   GitBranch,
   Send,
   Loader2,
-  Layers
+  Layers,
+  FileUp,
+  Download,
+  RotateCcw,
 } from 'lucide-react';
 import { projectsApi, authApi } from '../../api/client';
 import type {
@@ -43,6 +46,17 @@ import {
 } from '@cloudlab/shared-types';
 import { Navbar } from '../../components/Navbar';
 import { ProjectCalendar } from '../../components/ProjectCalendar';
+
+function parseFileAttachment(fileItem: string | any): { name: string; size?: number; dataUrl?: string; url?: string } {
+  if (typeof fileItem === 'object' && fileItem !== null) {
+    return fileItem;
+  }
+  try {
+    const parsed = JSON.parse(fileItem);
+    if (typeof parsed === 'object' && parsed !== null) return parsed;
+  } catch {}
+  return { name: 'Deliverable.pdf', dataUrl: fileItem, url: fileItem };
+}
 
 export const ProjectDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -69,6 +83,8 @@ export const ProjectDetailPage: React.FC = () => {
   const [submissionExplanation, setSubmissionExplanation] = useState('');
   const [submissionGitUrl, setSubmissionGitUrl] = useState('');
   const [submissionDeployUrl, setSubmissionDeployUrl] = useState('');
+  const [submissionPdf, setSubmissionPdf] = useState<{ name: string; size: number; dataUrl: string } | null>(null);
+  const [pdfUploadError, setPdfUploadError] = useState<string | null>(null);
   const [reviewModalSubmission, setReviewModalSubmission] = useState<{ task: ProjectTaskDto; submission: any } | null>(null);
   const [reviewDecision, setReviewDecision] = useState<'VALIDATE' | 'REJECT'>('VALIDATE');
   const [reviewFeedback, setReviewFeedback] = useState('');
@@ -149,6 +165,36 @@ export const ProjectDetailPage: React.FC = () => {
     }
   };
 
+  // PDF File Selection for Task Evidence
+  const handlePdfFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    setPdfUploadError(null);
+    if (!file) return;
+
+    if (!file.name.toLowerCase().endsWith('.pdf') && file.type !== 'application/pdf') {
+      setPdfUploadError('Please select a valid PDF file (.pdf)');
+      return;
+    }
+
+    if (file.size > 20 * 1024 * 1024) {
+      setPdfUploadError('PDF file size exceeds 20MB limit');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setSubmissionPdf({
+        name: file.name,
+        size: file.size,
+        dataUrl: reader.result as string,
+      });
+    };
+    reader.onerror = () => {
+      setPdfUploadError('Failed to read PDF file');
+    };
+    reader.readAsDataURL(file);
+  };
+
   // Task Submission
   const handleSubmitEvidence = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -156,15 +202,30 @@ export const ProjectDetailPage: React.FC = () => {
 
     try {
       setSubmittingAction(true);
+      const filesPayload: string[] = [];
+      if (submissionPdf) {
+        filesPayload.push(
+          JSON.stringify({
+            name: submissionPdf.name,
+            size: submissionPdf.size,
+            dataUrl: submissionPdf.dataUrl,
+            uploadedAt: new Date().toISOString(),
+          })
+        );
+      }
+
       await projectsApi.submitTask(id, selectedTaskForSubmission.id, {
         explanation: submissionExplanation,
         gitUrl: submissionGitUrl || undefined,
         deploymentUrl: submissionDeployUrl || undefined,
+        files: filesPayload,
       });
       setSelectedTaskForSubmission(null);
       setSubmissionExplanation('');
       setSubmissionGitUrl('');
       setSubmissionDeployUrl('');
+      setSubmissionPdf(null);
+      setPdfUploadError(null);
       await loadAll();
     } catch (err: any) {
       alert(err.response?.data?.error || 'Failed to submit evidence');
@@ -268,7 +329,12 @@ export const ProjectDetailPage: React.FC = () => {
             </div>
             <div className="meta-stat">
               <Shield size={16} className="stat-icon" />
-              <span>Owner: <strong>{project.owner?.firstName} {project.owner?.lastName}</strong></span>
+              <span>
+                Owner: <strong>
+                  {project.owner?.firstName || project.members?.find((m) => m.userId === project.ownerId || m.role === 'OWNER')?.user?.firstName || (isOwner && currentUser?.firstName) || 'Project'} {' '}
+                  {project.owner?.lastName || project.members?.find((m) => m.userId === project.ownerId || m.role === 'OWNER')?.user?.lastName || (isOwner && currentUser?.lastName) || 'Lead'}
+                </strong>
+              </span>
             </div>
           </div>
         </div>
@@ -506,6 +572,27 @@ export const ProjectDetailPage: React.FC = () => {
                                 <GitBranch size={12} /> Git: {sub.gitUrl}
                               </a>
                             )}
+                            {sub.files && sub.files.length > 0 && (
+                              <div className="sub-files-list">
+                                {sub.files.map((f: any, fIdx: number) => {
+                                  const parsed = parseFileAttachment(f);
+                                  return (
+                                    <a
+                                      key={fIdx}
+                                      href={parsed.dataUrl || parsed.url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      download={parsed.name || 'deliverable.pdf'}
+                                      className="sub-file-chip"
+                                    >
+                                      <FileText size={12} color="#06b6d4" />
+                                      <span>{parsed.name || 'Attached PDF Deliverable'}</span>
+                                      <Download size={11} className="download-icon" />
+                                    </a>
+                                  );
+                                })}
+                              </div>
+                            )}
                             {sub.feedback && (
                               <div className="sub-feedback">
                                 <strong>Feedback from {sub.reviewerName}:</strong> {sub.feedback}
@@ -701,20 +788,40 @@ export const ProjectDetailPage: React.FC = () => {
 
       {/* MODAL: Apply to Project */}
       {applyModalOpen && (
-        <div className="modal-overlay">
-          <div className="modal-card">
-            <h3>Apply to Join Project Squad</h3>
-            <p className="modal-lead">
-              Explain your background, interest, and the skills you can bring to "{project.title}".
-            </p>
+        <div className="modal-overlay" onClick={() => setApplyModalOpen(false)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="modal-header-icon squad">
+                <Users size={20} />
+              </div>
+              <div className="modal-header-text">
+                <h3>Apply to Join Project Squad</h3>
+                <p className="modal-lead">
+                  Explain your background, interest, and the skills you can bring to "{project.title}".
+                </p>
+              </div>
+              <button
+                type="button"
+                className="modal-close-btn"
+                onClick={() => setApplyModalOpen(false)}
+                aria-label="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
             <form onSubmit={handleApply}>
-              <textarea
-                required
-                rows={4}
-                placeholder="I have experience with Docker containerization and Kubernetes ingress..."
-                value={applyMessage}
-                onChange={(e) => setApplyMessage(e.target.value)}
-              />
+              <div className="field-group">
+                <label className="field-label">Motivation &amp; Relevant Background *</label>
+                <textarea
+                  required
+                  rows={4}
+                  placeholder="I have hands-on experience with Docker containerization, Kubernetes services, and CI/CD pipelines..."
+                  value={applyMessage}
+                  onChange={(e) => setApplyMessage(e.target.value)}
+                />
+              </div>
+
               <div className="modal-actions">
                 <button
                   type="button"
@@ -728,7 +835,8 @@ export const ProjectDetailPage: React.FC = () => {
                   className="btn-primary-gradient"
                   disabled={submittingAction}
                 >
-                  <Send size={15} /> Submit Application
+                  {submittingAction ? <Loader2 size={15} className="spinner" /> : <Send size={15} />}
+                  <span>Submit Application</span>
                 </button>
               </div>
             </form>
@@ -738,17 +846,31 @@ export const ProjectDetailPage: React.FC = () => {
 
       {/* MODAL: Submit Task Evidence */}
       {selectedTaskForSubmission && (
-        <div className="modal-overlay">
-          <div className="modal-card">
-            <h3>Submit Task Evidence: {selectedTaskForSubmission.title}</h3>
-            <p className="modal-lead">
-              Provide verifiable proof (Git commits, pull requests, deployment URLs, logs, or explanations).
-              Previous submissions are preserved in the task history.
-            </p>
+        <div className="modal-overlay" onClick={() => setSelectedTaskForSubmission(null)}>
+          <div className="modal-card modal-card-lg" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="modal-header-icon submit">
+                <UploadCloud size={20} />
+              </div>
+              <div className="modal-header-text">
+                <h3>Submit Task Evidence: {selectedTaskForSubmission.title}</h3>
+                <p className="modal-lead">
+                  Provide verifiable proof (Git commits, PRs, deployment URLs, logs, or attached PDF deliverables).
+                </p>
+              </div>
+              <button
+                type="button"
+                className="modal-close-btn"
+                onClick={() => setSelectedTaskForSubmission(null)}
+                aria-label="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
 
             <form onSubmit={handleSubmitEvidence}>
               <div className="field-group">
-                <label>Git Repository / PR URL</label>
+                <label className="field-label">Git Repository / PR URL</label>
                 <input
                   type="url"
                   placeholder="https://github.com/cloudlab/repo/pull/1"
@@ -758,7 +880,7 @@ export const ProjectDetailPage: React.FC = () => {
               </div>
 
               <div className="field-group">
-                <label>Live Deployment / Staging URL (Optional)</label>
+                <label className="field-label">Live Deployment / Staging URL (Optional)</label>
                 <input
                   type="url"
                   placeholder="https://staging.cloudlab.internal"
@@ -767,8 +889,49 @@ export const ProjectDetailPage: React.FC = () => {
                 />
               </div>
 
+              {/* PDF Document Upload */}
               <div className="field-group">
-                <label>Technical Explanation &amp; Verification Proof *</label>
+                <label className="field-label">Attach PDF Deliverable / Evidence</label>
+                {submissionPdf ? (
+                  <div className="pdf-attached-badge">
+                    <div className="pdf-badge-left">
+                      <div className="pdf-badge-icon">
+                        <FileText size={22} color="#06b6d4" />
+                      </div>
+                      <div className="pdf-badge-meta">
+                        <span className="pdf-badge-name">{submissionPdf.name}</span>
+                        <span className="pdf-badge-size">{(submissionPdf.size / 1024).toFixed(1)} KB • PDF Document</span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="pdf-remove-btn"
+                      onClick={() => setSubmissionPdf(null)}
+                      title="Remove attached PDF"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                ) : (
+                  <label className="pdf-dropzone">
+                    <input
+                      type="file"
+                      accept=".pdf,application/pdf"
+                      onChange={handlePdfFileSelect}
+                      style={{ display: 'none' }}
+                    />
+                    <FileUp size={24} className="dropzone-icon" />
+                    <div className="dropzone-text">
+                      <span className="dropzone-primary">Click to select PDF file</span> or drag and drop here
+                    </div>
+                    <span className="dropzone-hint">Upload documentation, test run logs, architecture proofs (PDF only, up to 20MB)</span>
+                  </label>
+                )}
+                {pdfUploadError && <div className="pdf-error-hint">{pdfUploadError}</div>}
+              </div>
+
+              <div className="field-group">
+                <label className="field-label">Technical Explanation &amp; Verification Proof *</label>
                 <textarea
                   required
                   rows={4}
@@ -791,7 +954,8 @@ export const ProjectDetailPage: React.FC = () => {
                   className="btn-primary-gradient"
                   disabled={submittingAction}
                 >
-                  <UploadCloud size={16} /> Submit for Review
+                  {submittingAction ? <Loader2 size={16} className="spinner" /> : <UploadCloud size={16} />}
+                  <span>Submit for Review</span>
                 </button>
               </div>
             </form>
@@ -801,50 +965,136 @@ export const ProjectDetailPage: React.FC = () => {
 
       {/* MODAL: Review Pending Submission */}
       {reviewModalSubmission && (
-        <div className="modal-overlay">
-          <div className="modal-card">
-            <h3>Review Task Evidence: {reviewModalSubmission.task.title}</h3>
-            <div className="sub-review-details">
-              <p><strong>Student:</strong> {reviewModalSubmission.submission.studentName}</p>
-              <p><strong>Explanation:</strong> {reviewModalSubmission.submission.explanation}</p>
-              {reviewModalSubmission.submission.gitUrl && (
-                <p>
-                  <strong>Git:</strong>{' '}
-                  <a href={reviewModalSubmission.submission.gitUrl} target="_blank" rel="noreferrer">
-                    {reviewModalSubmission.submission.gitUrl}
-                  </a>
+        <div className="modal-overlay" onClick={() => setReviewModalSubmission(null)}>
+          <div className="modal-card modal-card-lg" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="modal-header-icon review">
+                <ShieldCheck size={20} />
+              </div>
+              <div className="modal-header-text">
+                <h3>Review Task Evidence: {reviewModalSubmission.task.title}</h3>
+                <p className="modal-lead">
+                  Verify submitted code, live deployment, and attached PDF documentation before approving.
                 </p>
+              </div>
+              <button
+                type="button"
+                className="modal-close-btn"
+                onClick={() => setReviewModalSubmission(null)}
+                aria-label="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="sub-review-card">
+              <div className="sub-meta-row">
+                <span className="sub-meta-label">Student:</span>
+                <span className="sub-meta-val student-pill">
+                  <UserCheck size={13} /> {reviewModalSubmission.submission.studentName || 'Student'}
+                </span>
+              </div>
+              <div className="sub-meta-row">
+                <span className="sub-meta-label">Explanation:</span>
+                <div className="sub-explanation-quote">
+                  {reviewModalSubmission.submission.explanation}
+                </div>
+              </div>
+              {reviewModalSubmission.submission.gitUrl && (
+                <div className="sub-meta-row">
+                  <span className="sub-meta-label">Git Repo:</span>
+                  <a
+                    href={reviewModalSubmission.submission.gitUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="sub-external-link"
+                  >
+                    <GitBranch size={13} /> {reviewModalSubmission.submission.gitUrl} <ExternalLink size={11} />
+                  </a>
+                </div>
+              )}
+              {reviewModalSubmission.submission.deploymentUrl && (
+                <div className="sub-meta-row">
+                  <span className="sub-meta-label">Deployment:</span>
+                  <a
+                    href={reviewModalSubmission.submission.deploymentUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="sub-external-link"
+                  >
+                    <ExternalLink size={13} /> {reviewModalSubmission.submission.deploymentUrl}
+                  </a>
+                </div>
+              )}
+              {/* Show attached PDF in review */}
+              {reviewModalSubmission.submission.files && reviewModalSubmission.submission.files.length > 0 && (
+                <div className="sub-meta-row">
+                  <span className="sub-meta-label">Deliverable PDF:</span>
+                  <div className="review-files-grid">
+                    {reviewModalSubmission.submission.files.map((f: any, fIdx: number) => {
+                      const parsed = parseFileAttachment(f);
+                      return (
+                        <a
+                          key={fIdx}
+                          href={parsed.dataUrl || parsed.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          download={parsed.name || 'deliverable.pdf'}
+                          className="review-pdf-download-chip"
+                        >
+                          <FileText size={16} color="#06b6d4" />
+                          <div className="review-pdf-info">
+                            <span className="pdf-title">{parsed.name || 'Task Deliverable PDF'}</span>
+                            {parsed.size && <span className="pdf-sub">{(parsed.size / 1024).toFixed(1)} KB</span>}
+                          </div>
+                          <Download size={14} className="download-icon" />
+                        </a>
+                      );
+                    })}
+                  </div>
+                </div>
               )}
             </div>
 
             <div className="review-decision-group">
-              <label>Review Decision:</label>
-              <div className="radio-row">
-                <label className="radio-label">
-                  <input
-                    type="radio"
-                    name="decision"
-                    value="VALIDATE"
-                    checked={reviewDecision === 'VALIDATE'}
-                    onChange={() => setReviewDecision('VALIDATE')}
-                  />
-                  <span>Validate &amp; Approve (Skill Boost)</span>
-                </label>
-                <label className="radio-label">
-                  <input
-                    type="radio"
-                    name="decision"
-                    value="REJECT"
-                    checked={reviewDecision === 'REJECT'}
-                    onChange={() => setReviewDecision('REJECT')}
-                  />
-                  <span>Request Revisions (Reopen)</span>
-                </label>
+              <label className="field-label">Review Decision *</label>
+              <div className="decision-selector-grid">
+                <button
+                  type="button"
+                  className={`decision-card approve ${reviewDecision === 'VALIDATE' ? 'selected' : ''}`}
+                  onClick={() => setReviewDecision('VALIDATE')}
+                >
+                  <div className="decision-radio-dot">
+                    {reviewDecision === 'VALIDATE' && <div className="dot-inner" />}
+                  </div>
+                  <div className="decision-card-text">
+                    <div className="decision-title">
+                      <CheckCircle2 size={16} /> Validate &amp; Approve
+                    </div>
+                    <div className="decision-desc">Awards skill XP and unlocks dependent steps</div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  className={`decision-card reject ${reviewDecision === 'REJECT' ? 'selected' : ''}`}
+                  onClick={() => setReviewDecision('REJECT')}
+                >
+                  <div className="decision-radio-dot">
+                    {reviewDecision === 'REJECT' && <div className="dot-inner" />}
+                  </div>
+                  <div className="decision-card-text">
+                    <div className="decision-title">
+                      <RotateCcw size={16} /> Request Revisions
+                    </div>
+                    <div className="decision-desc">Reopens task for revision &amp; resubmission</div>
+                  </div>
+                </button>
               </div>
             </div>
 
             <div className="field-group">
-              <label>Reviewer Feedback &amp; Suggestions *</label>
+              <label className="field-label">Reviewer Feedback &amp; Suggestions *</label>
               <textarea
                 required
                 rows={3}
@@ -868,7 +1118,14 @@ export const ProjectDetailPage: React.FC = () => {
                 onClick={handleReviewSubmission}
                 disabled={submittingAction}
               >
-                {reviewDecision === 'VALIDATE' ? 'Approve & Validate Task' : 'Submit Rejection Feedback'}
+                {submittingAction ? (
+                  <Loader2 size={15} className="spinner" />
+                ) : reviewDecision === 'VALIDATE' ? (
+                  <CheckCircle2 size={16} />
+                ) : (
+                  <RotateCcw size={16} />
+                )}
+                <span>{reviewDecision === 'VALIDATE' ? 'Approve & Validate Task' : 'Submit Rejection Feedback'}</span>
               </button>
             </div>
           </div>
@@ -1462,8 +1719,8 @@ export const ProjectDetailPage: React.FC = () => {
           left: 0;
           right: 0;
           bottom: 0;
-          background: rgba(0, 0, 0, 0.75);
-          backdrop-filter: blur(4px);
+          background: rgba(4, 7, 14, 0.78);
+          backdrop-filter: blur(8px);
           display: flex;
           align-items: center;
           justify-content: center;
@@ -1471,68 +1728,510 @@ export const ProjectDetailPage: React.FC = () => {
           padding: 20px;
         }
         .modal-card {
-          background: var(--bg-card);
-          border: 1px solid var(--border-accent);
-          border-radius: var(--radius-lg);
-          padding: 28px;
-          max-width: 540px;
+          background: #0d1527;
+          border: 1px solid rgba(0, 212, 255, 0.22);
+          border-radius: 16px;
+          padding: 26px;
+          max-width: 520px;
           width: 100%;
-          box-shadow: var(--shadow-glow);
+          box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6), 0 0 25px rgba(0, 212, 255, 0.12);
+          animation: modalFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+          position: relative;
+          box-sizing: border-box;
         }
-        .modal-card h3 {
+        .modal-card.modal-card-lg {
+          max-width: 620px;
+        }
+        @keyframes modalFadeIn {
+          from { opacity: 0; transform: scale(0.96) translateY(8px); }
+          to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        .modal-header {
+          display: flex;
+          align-items: flex-start;
+          gap: 14px;
+          margin-bottom: 20px;
+          position: relative;
+        }
+        .modal-header-icon {
+          width: 42px;
+          height: 42px;
+          border-radius: 10px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+        }
+        .modal-header-icon.squad {
+          background: rgba(59, 130, 246, 0.15);
+          color: #60a5fa;
+          border: 1px solid rgba(59, 130, 246, 0.3);
+        }
+        .modal-header-icon.submit {
+          background: rgba(6, 182, 212, 0.15);
+          color: #22d3ee;
+          border: 1px solid rgba(6, 182, 212, 0.3);
+        }
+        .modal-header-icon.review {
+          background: rgba(16, 185, 129, 0.15);
+          color: #34d399;
+          border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+        .modal-header-text {
+          flex: 1;
+          min-width: 0;
+        }
+        .modal-header-text h3 {
           font-size: 18px;
-          margin-bottom: 8px;
+          font-weight: 700;
+          color: #f8fafc;
+          margin: 0 0 4px 0;
+          line-height: 1.3;
         }
         .modal-lead {
           font-size: 13px;
-          color: var(--text-secondary);
-          margin-bottom: 18px;
+          color: #94a3b8;
+          line-height: 1.5;
+          margin: 0;
         }
-        .modal-card textarea, .modal-card input {
+        .modal-close-btn {
+          background: none;
+          border: none;
+          color: #64748b;
+          cursor: pointer;
+          padding: 6px;
+          border-radius: 8px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.15s ease;
+        }
+        .modal-close-btn:hover {
+          color: #f1f5f9;
+          background: rgba(255, 255, 255, 0.08);
+        }
+        .field-group {
+          margin-bottom: 16px;
+        }
+        .field-label {
+          display: block;
+          font-size: 12.5px;
+          font-weight: 600;
+          color: #cbd5e1;
+          margin-bottom: 7px;
+          letter-spacing: 0.2px;
+        }
+        .modal-card input, .modal-card textarea {
           width: 100%;
-          background: var(--bg-secondary);
-          border: 1px solid var(--border-subtle);
-          border-radius: 6px;
-          padding: 10px;
-          color: var(--text-primary);
+          background: #080e1a;
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          border-radius: 8px;
+          padding: 11px 14px;
+          color: #f1f5f9;
           font-size: 13.5px;
-          margin-bottom: 12px;
+          font-family: inherit;
+          transition: all 0.2s ease;
+          outline: none;
+          box-sizing: border-box;
         }
-        .modal-actions {
+        .modal-card input:focus, .modal-card textarea:focus {
+          border-color: #06b6d4;
+          box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.18);
+          background: #0b1424;
+        }
+        .modal-card input::placeholder, .modal-card textarea::placeholder {
+          color: #475569;
+        }
+        /* PDF Dropzone & Badge */
+        .pdf-dropzone {
           display: flex;
-          justify-content: flex-end;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          padding: 18px 16px;
+          background: rgba(15, 23, 42, 0.5);
+          border: 2px dashed rgba(6, 182, 212, 0.35);
+          border-radius: 10px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          text-align: center;
+        }
+        .pdf-dropzone:hover {
+          border-color: #06b6d4;
+          background: rgba(6, 182, 212, 0.06);
+          box-shadow: 0 0 16px rgba(6, 182, 212, 0.12);
+        }
+        .dropzone-icon {
+          color: #06b6d4;
+          margin-bottom: 8px;
+        }
+        .dropzone-text {
+          font-size: 13.5px;
+          color: #cbd5e1;
+          margin-bottom: 4px;
+        }
+        .dropzone-primary {
+          color: #06b6d4;
+          font-weight: 600;
+        }
+        .dropzone-hint {
+          font-size: 11.5px;
+          color: #64748b;
+        }
+        .pdf-attached-badge {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 12px 14px;
+          background: rgba(6, 182, 212, 0.08);
+          border: 1px solid rgba(6, 182, 212, 0.35);
+          border-radius: 10px;
+        }
+        .pdf-badge-left {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          min-width: 0;
+        }
+        .pdf-badge-icon {
+          width: 36px;
+          height: 36px;
+          background: rgba(6, 182, 212, 0.15);
+          border-radius: 8px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+        }
+        .pdf-badge-meta {
+          display: flex;
+          flex-direction: column;
+          min-width: 0;
+        }
+        .pdf-badge-name {
+          font-size: 13.5px;
+          font-weight: 600;
+          color: #f1f5f9;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          max-width: 380px;
+        }
+        .pdf-badge-size {
+          font-size: 11.5px;
+          color: #94a3b8;
+        }
+        .pdf-remove-btn {
+          background: none;
+          border: none;
+          color: #94a3b8;
+          cursor: pointer;
+          padding: 6px;
+          border-radius: 6px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.15s ease;
+        }
+        .pdf-remove-btn:hover {
+          color: #f43f5e;
+          background: rgba(244, 63, 94, 0.12);
+        }
+        .pdf-error-hint {
+          color: #f43f5e;
+          font-size: 12px;
+          margin-top: 6px;
+        }
+        /* Review Evidence Card */
+        .sub-review-card {
+          background: rgba(15, 23, 42, 0.65);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 10px;
+          padding: 16px;
+          margin-bottom: 18px;
+          display: flex;
+          flex-direction: column;
           gap: 10px;
-          margin-top: 14px;
         }
-        .btn-decision.validate {
-          background: #10b981;
-          color: #070a0f;
-          font-weight: 600;
-          padding: 10px 16px;
-          border: none;
-          border-radius: 6px;
-          cursor: pointer;
-        }
-        .btn-decision.reject {
-          background: #f43f5e;
-          color: #fff;
-          font-weight: 600;
-          padding: 10px 16px;
-          border: none;
-          border-radius: 6px;
-          cursor: pointer;
-        }
-        .radio-row {
+        .sub-meta-row {
           display: flex;
-          gap: 16px;
-          margin-bottom: 14px;
+          align-items: flex-start;
+          gap: 10px;
+          font-size: 13px;
         }
-        .radio-label {
+        .sub-meta-label {
+          font-weight: 600;
+          color: #94a3b8;
+          min-width: 95px;
+          flex-shrink: 0;
+          font-size: 12.5px;
+        }
+        .sub-meta-val {
+          color: #f1f5f9;
+        }
+        .student-pill {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          background: rgba(59, 130, 246, 0.15);
+          color: #93c5fd;
+          padding: 3px 10px;
+          border-radius: 12px;
+          font-size: 12px;
+          font-weight: 600;
+        }
+        .sub-explanation-quote {
+          color: #e2e8f0;
+          background: rgba(0, 0, 0, 0.25);
+          padding: 8px 12px;
+          border-radius: 6px;
+          border-left: 3px solid #06b6d4;
+          font-size: 13px;
+          line-height: 1.45;
+          flex: 1;
+        }
+        .sub-external-link {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          color: #06b6d4;
+          text-decoration: underline;
+          font-size: 12.5px;
+          word-break: break-all;
+        }
+        .review-files-grid {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          flex: 1;
+        }
+        .review-pdf-download-chip {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          background: rgba(6, 182, 212, 0.12);
+          border: 1px solid rgba(6, 182, 212, 0.35);
+          padding: 8px 12px;
+          border-radius: 8px;
+          color: #f1f5f9;
+          text-decoration: none;
+          transition: all 0.2s ease;
+        }
+        .review-pdf-download-chip:hover {
+          background: rgba(6, 182, 212, 0.22);
+          border-color: #06b6d4;
+          box-shadow: 0 0 12px rgba(6, 182, 212, 0.25);
+          color: #ffffff;
+        }
+        .review-pdf-info {
+          display: flex;
+          flex-direction: column;
+        }
+        .review-pdf-info .pdf-title {
+          font-size: 12.5px;
+          font-weight: 600;
+        }
+        .review-pdf-info .pdf-sub {
+          font-size: 11px;
+          color: #94a3b8;
+        }
+        /* Decision Cards */
+        .decision-selector-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 12px;
+          margin-top: 6px;
+        }
+        .decision-card {
+          display: flex;
+          align-items: flex-start;
+          gap: 12px;
+          padding: 14px 16px;
+          background: rgba(15, 23, 42, 0.5);
+          border: 1.5px solid rgba(255, 255, 255, 0.1);
+          border-radius: 10px;
+          cursor: pointer;
+          text-align: left;
+          transition: all 0.2s ease;
+          font-family: inherit;
+        }
+        .decision-card:hover {
+          border-color: rgba(255, 255, 255, 0.25);
+          background: rgba(15, 23, 42, 0.85);
+        }
+        .decision-card.approve.selected {
+          background: rgba(16, 185, 129, 0.12);
+          border-color: #10b981;
+          box-shadow: 0 0 16px rgba(16, 185, 129, 0.22);
+        }
+        .decision-card.reject.selected {
+          background: rgba(244, 63, 94, 0.12);
+          border-color: #f43f5e;
+          box-shadow: 0 0 16px rgba(244, 63, 94, 0.22);
+        }
+        .decision-radio-dot {
+          width: 18px;
+          height: 18px;
+          border-radius: 50%;
+          border: 2px solid rgba(255, 255, 255, 0.3);
+          margin-top: 2px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+          transition: all 0.2s ease;
+        }
+        .decision-card.approve.selected .decision-radio-dot {
+          border-color: #10b981;
+        }
+        .decision-card.reject.selected .decision-radio-dot {
+          border-color: #f43f5e;
+        }
+        .decision-radio-dot .dot-inner {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+        }
+        .decision-card.approve.selected .dot-inner {
+          background: #10b981;
+        }
+        .decision-card.reject.selected .dot-inner {
+          background: #f43f5e;
+        }
+        .decision-card-text {
+          flex: 1;
+        }
+        .decision-title {
           display: flex;
           align-items: center;
           gap: 6px;
-          font-size: 13px;
+          font-size: 13.5px;
+          font-weight: 700;
+          color: #f1f5f9;
+          margin-bottom: 2px;
+        }
+        .decision-card.approve .decision-title {
+          color: #34d399;
+        }
+        .decision-card.reject .decision-title {
+          color: #fda4af;
+        }
+        .decision-desc {
+          font-size: 11.5px;
+          color: #94a3b8;
+          line-height: 1.35;
+        }
+        /* Modal Actions & Buttons */
+        .modal-actions {
+          display: flex;
+          justify-content: flex-end;
+          gap: 12px;
+          margin-top: 22px;
+          padding-top: 14px;
+          border-top: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .btn-primary-gradient {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          background: linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%);
+          color: #ffffff !important;
+          padding: 10px 20px;
+          border-radius: 8px;
+          font-weight: 600;
+          font-size: 13.5px;
+          border: none;
           cursor: pointer;
+          transition: all 0.2s ease;
+          box-shadow: 0 4px 14px rgba(6, 182, 212, 0.35);
+        }
+        .btn-primary-gradient:hover:not(:disabled) {
+          transform: translateY(-1px);
+          box-shadow: 0 6px 20px rgba(6, 182, 212, 0.5);
+          filter: brightness(1.08);
+        }
+        .btn-primary-gradient:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+          transform: none;
+          box-shadow: none;
+        }
+        .modal-actions .btn-secondary {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          background: rgba(255, 255, 255, 0.06);
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          color: #cbd5e1;
+          padding: 10px 18px;
+          border-radius: 8px;
+          font-weight: 500;
+          font-size: 13.5px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+        .modal-actions .btn-secondary:hover {
+          background: rgba(255, 255, 255, 0.12);
+          color: #ffffff;
+          border-color: rgba(255, 255, 255, 0.22);
+        }
+        .btn-decision {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          font-weight: 600;
+          font-size: 13.5px;
+          padding: 10px 20px;
+          border: none;
+          border-radius: 8px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+        .btn-decision.validate {
+          background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+          color: #ffffff;
+          box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
+        }
+        .btn-decision.validate:hover:not(:disabled) {
+          transform: translateY(-1px);
+          box-shadow: 0 6px 20px rgba(16, 185, 129, 0.5);
+          filter: brightness(1.08);
+        }
+        .btn-decision.reject {
+          background: linear-gradient(135deg, #f43f5e 0%, #e11d48 100%);
+          color: #ffffff;
+          box-shadow: 0 4px 14px rgba(244, 63, 94, 0.35);
+        }
+        .btn-decision.reject:hover:not(:disabled) {
+          transform: translateY(-1px);
+          box-shadow: 0 6px 20px rgba(244, 63, 94, 0.5);
+          filter: brightness(1.08);
+        }
+        .sub-files-list {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+          margin-top: 6px;
+        }
+        .sub-file-chip {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          background: rgba(6, 182, 212, 0.1);
+          border: 1px solid rgba(6, 182, 212, 0.3);
+          padding: 4px 8px;
+          border-radius: 6px;
+          font-size: 11.5px;
+          color: #e2e8f0;
+          text-decoration: none;
+          transition: all 0.15s ease;
+        }
+        .sub-file-chip:hover {
+          background: rgba(6, 182, 212, 0.2);
+          color: #ffffff;
         }
         .loading-fullscreen, .error-fullscreen {
           min-height: 60vh;

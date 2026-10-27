@@ -168,10 +168,10 @@ export const DashboardPage: React.FC = () => {
     challenges.length > 0
       ? challenges
       : [
-          { id: 'c1', title: 'CrashLoopBackOff Triage', category: 'Kubernetes', difficulty: 'INTERMEDIATE', xpReward: 250 },
-          { id: 'c2', title: 'Docker Bridge Network Fix', category: 'Docker', difficulty: 'BEGINNER', xpReward: 120 },
-          { id: 'c3', title: 'Nginx Ingress Controller 502s', category: 'Kubernetes', difficulty: 'ADVANCED', xpReward: 400 },
-        ];
+        { id: 'c1', title: 'CrashLoopBackOff Triage', category: 'Kubernetes', difficulty: 'INTERMEDIATE', xpReward: 250 },
+        { id: 'c2', title: 'Docker Bridge Network Fix', category: 'Docker', difficulty: 'BEGINNER', xpReward: 120 },
+        { id: 'c3', title: 'Nginx Ingress Controller 502s', category: 'Kubernetes', difficulty: 'ADVANCED', xpReward: 400 },
+      ];
 
   const enrolledCount = enrollments.length;
   const totalLearners = courses.reduce((acc: number, c: any) => acc + (c.enrolledStudentsCount || 0), 0) || 15256;
@@ -228,12 +228,7 @@ export const DashboardPage: React.FC = () => {
             <button type="button" className="btn-primary student-cta" onClick={() => navigate('/learning')}>
               Explore All Classes <ArrowRight size={16} />
             </button>
-            <button type="button" className="student-watch" onClick={() => scrollTo('labs')}>
-              <span className="student-watch-icon">
-                <PlayCircle size={22} />
-              </span>
-              Watch Our Labs
-            </button>
+
           </div>
         </div>
 
@@ -378,68 +373,6 @@ export const DashboardPage: React.FC = () => {
           <span>Your enrollments</span>
         </div>
       </section>
-
-      <section id="instructors" className="student-section">
-        <p className="student-kicker" style={{ textAlign: 'center' }}>Faculty</p>
-        <h2 style={{ textAlign: 'center' }}>Meet our teachers</h2>
-        <div className="teacher-grid">
-          {TEACHERS.map((t) => (
-            <article key={t.name} className="teacher-card">
-              <img src={t.img} alt={t.name} />
-              <h3>{t.name}</h3>
-              <p>{t.role}</p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section id="reviews" className="student-section student-reviews">
-        <p className="student-kicker" style={{ textAlign: 'center' }}>Community</p>
-        <h2 style={{ textAlign: 'center' }}>Our students' feedback</h2>
-        <div className="review-grid">
-          {REVIEWS.map((r) => (
-            <article key={r.name} className="review-card">
-              <div className="review-stars">
-                {Array.from({ length: r.rating }).map((_, i) => (
-                  <Star key={i} size={14} fill="#f59e0b" color="#f59e0b" />
-                ))}
-              </div>
-              <p>{r.text}</p>
-              <strong>{r.name}</strong>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section id="labs" className="student-section">
-        <div className="section-head">
-          <div>
-            <p className="student-kicker">Live practice</p>
-            <h2>Have a look at our labs</h2>
-          </div>
-        </div>
-        <div className="news-grid">
-          {labList.slice(0, 3).map((lab: any) => (
-            <article key={lab.id} className="news-card">
-              <div className="news-thumb">
-                <Flame size={22} color="#ef4444" />
-              </div>
-              <div>
-                <p className="course-track">{lab.category} · {lab.difficulty}</p>
-                <h3>{lab.title}</h3>
-                <p>+{lab.xpReward} XP · Deterministic terminal sandbox</p>
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      {profile && (
-        <p className="student-progress-note">
-          Your progress stays private in this view — {profile.totalXp?.toLocaleString?.() || 0} XP earned. Open a course when you are ready.
-        </p>
-      )}
-
       <footer id="contact" className="student-footer">
         <div className="footer-grid">
           <div>

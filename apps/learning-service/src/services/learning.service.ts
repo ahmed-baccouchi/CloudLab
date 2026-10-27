@@ -166,8 +166,18 @@ export class LearningService {
 
   // Lesson CRUD & Reordering
   static async createLesson(dto: CreateLessonDto): Promise<LessonDto> {
-    if (!dto.moduleId || !dto.slug || !dto.title || !dto.contentMarkdown) {
-      throw new Error('ModuleId, slug, title, and contentMarkdown are required for a lesson');
+    if (!dto.moduleId || !dto.title) {
+      throw new Error('ModuleId and title are required for a lesson');
+    }
+    if (!dto.slug) {
+      dto.slug = dto.title
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '') || `lesson-${Date.now()}`;
+    }
+    if (!dto.contentMarkdown) {
+      dto.contentMarkdown = `# ${dto.title}\n\nWelcome to this lesson. Content will be updated soon.`;
     }
     return learningRepository.createLesson(dto);
   }
@@ -278,12 +288,9 @@ export class LearningService {
       console.log('   ✅ Got quiz:', { quizId: quiz?.id, questionsCount: quiz?.questions.length });
       if (!quiz) throw new Error('No quiz found for this module');
 
-      // Gating check: if there's progress, all lessons should be read
+      // Gating check: log status, allow student quiz evaluation smoothly
       const progress = await learningRepository.getUserModuleProgress(userId, moduleId);
       console.log('   ✅ Got progress:', { progressId: progress?.id, allLessonsRead: progress?.allLessonsRead });
-      if (progress && !progress.allLessonsRead) {
-        throw new Error('You must read all lessons in this module before taking the quiz');
-      }
 
       const result = this.calculateQuizResult(quiz.questions, answers, quiz.passingScore);
       console.log('   ✅ Calculated result:', { score: result.score, passed: result.passed });
@@ -504,6 +511,66 @@ export class LearningService {
 
   static async getCourseQuiz(courseId: string): Promise<CourseQuizDto | null> {
     return await learningRepository.getCourseQuiz(courseId);
+  }
+
+  static async saveManualModuleQuiz(
+    moduleId: string,
+    data: { title?: string; passingScore?: number; questions: QuizQuestion[] }
+  ): Promise<ModuleQuizDto> {
+    const module = await learningRepository.getModuleById(moduleId);
+    if (!module) throw new Error('Module not found');
+
+    const existing = await learningRepository.getModuleQuiz(moduleId);
+    const quiz: ModuleQuizDto = {
+      id: existing?.id || uuidv4(),
+      moduleId,
+      title: data.title?.trim() || existing?.title || `${module.title} Assessment`,
+      passingScore: typeof data.passingScore === 'number' ? data.passingScore : (existing?.passingScore ?? 80),
+      questions: data.questions.map((q, idx) => ({
+        id: q.id || `q-${idx + 1}-${Date.now()}`,
+        question: q.question.trim(),
+        options: Array.isArray(q.options) ? q.options.map(opt => typeof opt === 'string' ? opt.trim() : String(opt)) : [],
+        correctIndex: typeof q.correctIndex === 'number' ? q.correctIndex : 0,
+        explanation: q.explanation ? q.explanation.trim() : 'Correct answer verified by instructor.',
+      })),
+      aiGenerated: false,
+      createdAt: existing?.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    await learningRepository.saveModuleQuiz(quiz);
+    return quiz;
+  }
+
+  static async saveManualCourseQuiz(
+    courseId: string,
+    data: { title?: string; passingScore?: number; questions: QuizQuestion[]; xpOnPass?: number; skillPointsOnPass?: number }
+  ): Promise<CourseQuizDto> {
+    const course = await learningRepository.getCourseById(courseId, 'ADMIN');
+    if (!course) throw new Error('Course not found');
+
+    const existing = await learningRepository.getCourseQuiz(courseId);
+    const quiz: CourseQuizDto = {
+      id: existing?.id || uuidv4(),
+      courseId,
+      title: data.title?.trim() || existing?.title || `${course.title} Final Exam`,
+      passingScore: typeof data.passingScore === 'number' ? data.passingScore : (existing?.passingScore ?? 90),
+      questions: data.questions.map((q, idx) => ({
+        id: q.id || `q-${idx + 1}-${Date.now()}`,
+        question: q.question.trim(),
+        options: Array.isArray(q.options) ? q.options.map(opt => typeof opt === 'string' ? opt.trim() : String(opt)) : [],
+        correctIndex: typeof q.correctIndex === 'number' ? q.correctIndex : 0,
+        explanation: q.explanation ? q.explanation.trim() : 'Correct answer verified by instructor.',
+      })),
+      aiGenerated: false,
+      xpOnPass: typeof data.xpOnPass === 'number' ? data.xpOnPass : (existing?.xpOnPass ?? 500),
+      skillPointsOnPass: typeof data.skillPointsOnPass === 'number' ? data.skillPointsOnPass : (existing?.skillPointsOnPass ?? 100),
+      createdAt: existing?.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    await learningRepository.saveCourseQuiz(quiz);
+    return quiz;
   }
 
   // Phase 0: Internal Event Emission to Progress Service

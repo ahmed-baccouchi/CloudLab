@@ -186,6 +186,7 @@ export interface CourseEnrollmentDto {
   isCompleted: boolean;
   completedAt?: string;
   completedLessonIds?: string[];
+  passedModuleQuizIds?: string[];
   quizzesCompletedCount: number;
   challengesCompletedCount: number;
 }

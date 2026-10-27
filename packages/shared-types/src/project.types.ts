@@ -349,7 +349,18 @@ export interface ProjectNotificationDto {
   id: string;
   userId: string;
   projectId?: string;
-  type: 'APPLICATION_RECEIVED' | 'APPLICATION_DECISION' | 'TEAM_FORMED' | 'TASK_ASSIGNED' | 'TASK_SUBMISSION' | 'TASK_VALIDATED' | 'TASK_REJECTED' | 'PROJECT_COMPLETED' | 'DEADLINE_WARNING';
+  type:
+    | 'APPLICATION_RECEIVED'
+    | 'APPLICATION_DECISION'
+    | 'TEAM_FORMED'
+    | 'TASK_ASSIGNED'
+    | 'TASK_SUBMISSION'
+    | 'TASK_VALIDATED'
+    | 'TASK_REJECTED'
+    | 'PROJECT_COMPLETED'
+    | 'DEADLINE_WARNING'
+    | 'PHASE_UNLOCKED'
+    | 'STEP_UPDATE';
   title: string;
   message: string;
   read: boolean;

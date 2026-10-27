@@ -304,6 +304,9 @@ export const learningApi = {
   generateModuleQuiz: (moduleId: string) =>
     apiClient.post(`/learning/modules/${encodeURIComponent(moduleId)}/quiz/generate`, {}),
 
+  saveModuleQuiz: (moduleId: string, data: { title?: string; passingScore?: number; questions: any[] }) =>
+    apiClient.post(`/learning/modules/${encodeURIComponent(moduleId)}/quiz/save`, data),
+
   // Course Final Exam Quizzes
   getCourseQuiz: (courseId: string) =>
     apiClient.get(`/learning/courses/${encodeURIComponent(courseId)}/quiz`),
@@ -313,6 +316,9 @@ export const learningApi = {
 
   generateCourseQuiz: (courseId: string) =>
     apiClient.post(`/learning/courses/${encodeURIComponent(courseId)}/quiz/generate`, {}),
+
+  saveCourseQuiz: (courseId: string, data: { title?: string; passingScore?: number; questions: any[]; xpOnPass?: number; skillPointsOnPass?: number }) =>
+    apiClient.post(`/learning/courses/${encodeURIComponent(courseId)}/quiz/save`, data),
 
   // Instructor Analytics
   getCourseAnalytics: (courseId: string) =>

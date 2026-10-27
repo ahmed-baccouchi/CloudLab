@@ -33,8 +33,7 @@ spec:
                 configMapKeyRef:
                   name: cloudlab-config
                   key: NODE_ENV
-            - name: PORT
-              value: "4000"
+            - name: GATEWAY_PORT`n              value: "4000"
             - name: AUTH_SERVICE_URL
               valueFrom:
                 configMapKeyRef:
@@ -100,3 +99,4 @@ spec:
       name: http
   selector:
     app: api-gateway
+

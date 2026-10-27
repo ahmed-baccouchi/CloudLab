@@ -1531,15 +1531,45 @@ kubectl logs <pod-name> --previous
         );
         enrollment.completedLessonIds = rows.map((row: any) => row.lesson_id);
         console.log(`   ✅ Fetched ${enrollment.completedLessonIds!.length} completed lessons from DB:`, enrollment.completedLessonIds);
+
+        try {
+          const [quizRows]: any = await this.pool.query(
+            'SELECT module_id FROM cloudlab_learning.user_module_progress WHERE user_id = ? AND quiz_passed = TRUE',
+            [userId]
+          );
+          enrollment.passedModuleQuizIds = quizRows.map((row: any) => row.module_id);
+        } catch (_qe) {
+          const passedIds: string[] = [];
+          for (const prog of this.userModuleProgress.values()) {
+            if (prog.userId === userId && prog.quizPassed && prog.moduleId) {
+              passedIds.push(prog.moduleId);
+            }
+          }
+          enrollment.passedModuleQuizIds = passedIds;
+        }
       } catch (err: any) {
         console.error('❌ [Learning Repository] getEnrollment query failed:', err.message);
         // Fallback to in-memory data
         enrollment.completedLessonIds = Array.from(this.userLessonCompletions.get(userId) || new Set());
+        const passedIds: string[] = [];
+        for (const prog of this.userModuleProgress.values()) {
+          if (prog.userId === userId && prog.quizPassed && prog.moduleId) {
+            passedIds.push(prog.moduleId);
+          }
+        }
+        enrollment.passedModuleQuizIds = passedIds;
         console.log(`   ⚠️ Fallback to in-memory: ${enrollment.completedLessonIds.length} lessons`);
       }
     } else {
       // Database not connected, use in-memory data
       enrollment.completedLessonIds = Array.from(this.userLessonCompletions.get(userId) || new Set());
+      const passedIds: string[] = [];
+      for (const prog of this.userModuleProgress.values()) {
+        if (prog.userId === userId && prog.quizPassed && prog.moduleId) {
+          passedIds.push(prog.moduleId);
+        }
+      }
+      enrollment.passedModuleQuizIds = passedIds;
       console.log(`   ⚠️ Database not connected. In-memory: ${enrollment.completedLessonIds.length} lessons`);
     }
     
@@ -1809,6 +1839,29 @@ kubectl logs <pod-name> --previous
   }
 
   async recordQuizSubmission(submission: QuizSubmissionHistoryDto): Promise<void> {
+    if (submission.quizType === 'MODULE' && submission.moduleId && submission.passed) {
+      const key = `${submission.userId}_${submission.moduleId}`;
+      let progress = this.userModuleProgress.get(key);
+      if (!progress) {
+        progress = {
+          id: uuidv4(),
+          userId: submission.userId,
+          courseId: submission.courseId || '',
+          moduleId: submission.moduleId,
+          allLessonsRead: true,
+          quizPassed: true,
+          quizBestScore: submission.score,
+          completedAt: new Date().toISOString(),
+        };
+      } else {
+        progress.quizPassed = true;
+        progress.allLessonsRead = true;
+        progress.quizBestScore = Math.max(progress.quizBestScore || 0, submission.score);
+        if (!progress.completedAt) progress.completedAt = new Date().toISOString();
+      }
+      this.userModuleProgress.set(key, progress);
+    }
+
     if (this.isConnected && this.pool) {
       try {
         await this.pool.query(
@@ -1829,16 +1882,13 @@ kubectl logs <pod-name> --previous
 
         if (submission.quizType === 'MODULE' && submission.moduleId && submission.passed) {
           const key = `${submission.userId}_${submission.moduleId}`;
-          let progress = this.userModuleProgress.get(key);
+          const progress = this.userModuleProgress.get(key);
           if (progress) {
-            progress.quizPassed = true;
-            progress.quizBestScore = Math.max(progress.quizBestScore, submission.score);
-            if (!progress.completedAt) progress.completedAt = new Date().toISOString();
-            this.userModuleProgress.set(key, progress);
-
             await this.pool.query(
-              `UPDATE user_module_progress SET quiz_passed = TRUE, quiz_best_score = ?, completed_at = ? WHERE id = ?`,
-              [progress.quizBestScore, progress.completedAt, progress.id]
+              `INSERT INTO user_module_progress (id, user_id, course_id, module_id, all_lessons_read, quiz_passed, quiz_best_score, completed_at)
+               VALUES (?, ?, ?, ?, TRUE, TRUE, ?, ?)
+               ON DUPLICATE KEY UPDATE quiz_passed = TRUE, all_lessons_read = TRUE, quiz_best_score = GREATEST(quiz_best_score, ?), completed_at = COALESCE(completed_at, ?)`,
+              [progress.id, submission.userId, submission.courseId || '', submission.moduleId, submission.score, progress.completedAt, submission.score, progress.completedAt]
             );
           }
         }

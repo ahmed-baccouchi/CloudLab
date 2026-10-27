@@ -20,6 +20,7 @@ import {
   TaskAssignmentRecommendationDto,
   AiProjectPlanResponse,
 } from '@cloudlab/shared-types';
+import { SchedulerService } from '../services/scheduler.service';
 
 export class ProjectsRepository {
   private pool: mysql.Pool | null = null;
@@ -232,12 +233,32 @@ export class ProjectsRepository {
         });
       }
 
+      const userMap = new Map<string, { id: string; firstName: string; lastName: string; email: string }>();
+      try {
+        const [authUsers]: any = await this.pool.query('SELECT id, first_name, last_name, email FROM cloudlab_auth.users');
+        for (const u of authUsers) {
+          userMap.set(u.id, {
+            id: u.id,
+            firstName: u.first_name,
+            lastName: u.last_name,
+            email: u.email,
+          });
+        }
+      } catch (e) {}
+
       const [projectsRows]: any = await this.pool.query('SELECT * FROM projects');
       for (const row of projectsRows) {
+        const ownerUser = userMap.get(row.owner_id);
         this.projects.set(row.id, {
           id: row.id,
           ownerUserId: row.owner_id,
           ownerId: row.owner_id,
+          owner: ownerUser || {
+            id: row.owner_id,
+            firstName: 'Project',
+            lastName: 'Owner',
+            email: '',
+          },
           title: row.title,
           description: row.description,
           objectives: typeof row.objectives === 'string' ? JSON.parse(row.objectives) : (row.objectives || []),
@@ -256,23 +277,37 @@ export class ProjectsRepository {
 
       const [membersRows]: any = await this.pool.query('SELECT * FROM project_members');
       for (const row of membersRows) {
+        const memberUser = userMap.get(row.user_id);
         this.members.set(`${row.project_id}_${row.user_id}`, {
           id: row.id,
           projectId: row.project_id,
           userId: row.user_id,
           role: row.role,
+          user: memberUser || {
+            id: row.user_id,
+            firstName: 'Member',
+            lastName: '',
+            email: '',
+          },
           joinedAt: row.joined_at?.toISOString() || new Date().toISOString(),
         });
       }
 
       const [appRows]: any = await this.pool.query('SELECT * FROM project_applications');
       for (const row of appRows) {
+        const appUser = userMap.get(row.user_id);
         this.applications.set(row.id, {
           id: row.id,
           projectId: row.project_id,
           userId: row.user_id,
           message: row.message,
           status: row.status,
+          user: appUser || {
+            id: row.user_id,
+            firstName: 'Applicant',
+            lastName: '',
+            email: '',
+          },
           appliedAt: row.applied_at?.toISOString() || new Date().toISOString(),
           decidedAt: row.decided_at?.toISOString(),
         });
@@ -504,8 +539,18 @@ export class ProjectsRepository {
     const tasks = await this.getProjectTasks(id);
     const applications = await this.getProjectApplications(id);
 
+    // Resolve owner info if missing
+    let owner = project.owner;
+    if (!owner || !owner.firstName) {
+      const ownerMember = members.find((m) => m.userId === project.ownerId || m.role === ProjectMemberRole.OWNER);
+      if (ownerMember?.user && ownerMember.user.firstName) {
+        owner = ownerMember.user;
+      }
+    }
+
     return {
       ...project,
+      owner,
       members,
       tasks,
       applications,
@@ -902,9 +947,51 @@ export class ProjectsRepository {
   // Tasks, Dependencies & Auto-Locking
   // ==========================================
   async getProjectTasks(projectId: string): Promise<ProjectTaskDto[]> {
-    const list = Array.from(this.tasks.values())
+    let list = Array.from(this.tasks.values())
       .filter((t) => t.projectId === projectId)
       .sort((a, b) => a.orderIndex - b.orderIndex);
+
+    // If no tasks exist for this project, auto-generate standard agile roadmap tasks
+    if (list.length === 0) {
+      const project = this.projects.get(projectId);
+      if (project) {
+        const plan = SchedulerService.generateAiProjectPlan({
+          title: project.title,
+          description: project.description,
+          objectives: project.objectives || [],
+          difficulty: project.difficulty || 'INTERMEDIATE',
+          technologies: project.technologies || [],
+          skills: project.skills || [],
+          durationDays: project.durationDays || 14,
+        });
+
+        const flattenedTasks: any[] = [];
+        let globalIdx = 0;
+        plan.phases.forEach((phase) => {
+          phase.tasks.forEach((task) => {
+            flattenedTasks.push({
+              id: `task_${projectId}_${globalIdx}`,
+              title: task.title,
+              description: task.description,
+              phase: phase.name,
+              durationDays: task.durationDays,
+              requiredSkills: task.skills,
+              technologies: task.technologies,
+              deliverables: task.deliverables,
+              validationCriteria: task.validationCriteria,
+              prerequisiteTaskIds: task.prerequisiteIndices.map((i) => `task_${projectId}_${i}`),
+              orderIndex: globalIdx,
+            });
+            globalIdx++;
+          });
+        });
+
+        await this.saveTasksForProject(projectId, flattenedTasks);
+        list = Array.from(this.tasks.values())
+          .filter((t) => t.projectId === projectId)
+          .sort((a, b) => a.orderIndex - b.orderIndex);
+      }
+    }
 
     // Refresh lock statuses based on prerequisites
     const validatedIds = new Set(
@@ -1023,6 +1110,21 @@ export class ProjectsRepository {
         } catch (e: any) {
           console.warn('⚠️ [Projects Module] Failed to save task in MySQL:', e.message);
         }
+      }
+    }
+
+    const project = this.projects.get(projectId);
+    if (project && saved.length > 0) {
+      const members = this.getProjectMembersSync(projectId);
+      for (const m of members) {
+        await this.createNotification(
+          m.userId,
+          projectId,
+          'PHASE_UNLOCKED',
+          'Project Steps Roadmap Updated 🗺️',
+          `Roadmap for "${project.title}" has ${saved.length} development steps scheduled.`,
+          { taskCount: saved.length }
+        );
       }
     }
 
@@ -1145,17 +1247,31 @@ export class ProjectsRepository {
       }
     }
 
-    // Notify project owner
+    // Notify project owner and squad members
     const project = this.projects.get(projectId);
     if (project) {
       await this.createNotification(
         project.ownerUserId,
         projectId,
         'TASK_SUBMISSION',
-        'Task Submitted for Review',
+        'Task Step Submitted for Review',
         `${studentName} submitted evidence for "${task.title}".`,
         { taskId, submissionId }
       );
+
+      const members = this.getProjectMembersSync(projectId);
+      for (const m of members) {
+        if (m.userId !== studentId && m.userId !== project.ownerUserId) {
+          await this.createNotification(
+            m.userId,
+            projectId,
+            'TASK_SUBMISSION',
+            'Squad Task Progress Update',
+            `${studentName} submitted step "${task.title}" for review.`,
+            { taskId, submissionId }
+          );
+        }
+      }
     }
 
     await this.logActivity(projectId, studentId, studentName, 'TASK_SUBMITTED', {
@@ -1218,10 +1334,56 @@ export class ProjectsRepository {
         submission.studentId,
         projectId,
         'TASK_VALIDATED',
-        'Task Validated! 🌟',
+        'Step Validated & Approved! 🌟',
         `Your submission for "${task.title}" was approved by ${reviewerName}. Skills updated!`,
         { taskId, feedback }
       );
+
+      const members = this.getProjectMembersSync(projectId);
+      for (const m of members) {
+        if (m.userId !== submission.studentId) {
+          await this.createNotification(
+            m.userId,
+            projectId,
+            'TASK_VALIDATED',
+            'Project Step Completed ✅',
+            `Step "${task.title}" was approved and validated.`,
+            { taskId }
+          );
+        }
+      }
+
+      // Check if subsequent downstream tasks/steps are unlocked by this validation
+      const allProjectTasks = Array.from(this.tasks.values()).filter((t) => t.projectId === projectId);
+      const validatedIds = new Set(
+        allProjectTasks.filter((t) => t.status === ProjectTaskStatus.VALIDATED).map((t) => t.id)
+      );
+      for (const t of allProjectTasks) {
+        if (t.status === ProjectTaskStatus.LOCKED) {
+          const hasUnmet = t.prerequisiteTaskIds.some((pid) => !validatedIds.has(pid));
+          if (!hasUnmet) {
+            t.status = ProjectTaskStatus.TODO;
+            t.updatedAt = now;
+            this.tasks.set(t.id, t);
+            if (this.pool) {
+              await this.pool.query('UPDATE project_tasks SET status = ?, updated_at = NOW() WHERE id = ?', [
+                ProjectTaskStatus.TODO,
+                t.id,
+              ]).catch(() => {});
+            }
+            for (const m of members) {
+              await this.createNotification(
+                m.userId,
+                projectId,
+                'PHASE_UNLOCKED',
+                'Next Step Unlocked! 🚀',
+                `Prerequisites met for step "${t.title}". The step is now ready to begin!`,
+                { taskId: t.id }
+              );
+            }
+          }
+        }
+      }
 
       // Check if all tasks in project are validated -> project completion
       const allTasks = Array.from(this.tasks.values()).filter((t) => t.projectId === projectId);
@@ -1361,6 +1523,21 @@ export class ProjectsRepository {
           `INSERT INTO project_notifications (id, user_id, project_id, type, title, message, is_read, metadata)
            VALUES (?, ?, ?, ?, ?, ?, 0, ?)`,
           [notif.id, userId, projectId || null, type, title, message, metadata ? JSON.stringify(metadata) : null]
+        );
+      } catch (e) {}
+
+      try {
+        await this.pool.query(
+          `INSERT INTO notifications (id, user_id, type, title, message, reference_id, link_url, is_read, created_at)
+           VALUES (?, ?, 'PROJECT_EVENT', ?, ?, ?, ?, 0, NOW())`,
+          [
+            notif.id,
+            userId,
+            title,
+            message,
+            projectId || null,
+            projectId ? `/projects/${projectId}` : '/projects',
+          ]
         );
       } catch (e) {}
     }
