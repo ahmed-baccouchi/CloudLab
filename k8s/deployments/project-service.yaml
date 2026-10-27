@@ -33,7 +33,8 @@ spec:
                 configMapKeyRef:
                   name: cloudlab-config
                   key: NODE_ENV
-            - name: PROJECT_SERVICE_PORT`n              value: "4005"
+            - name: PROJECT_SERVICE_PORT
+              value: "4005"
             - name: DATABASE_HOST
               valueFrom:
                 configMapKeyRef:
